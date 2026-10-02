@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Twish Comandos",
+  "name": "PescaSkills",
   "version": "3.1.0",
-  "description": "Atalhos pixel-art para comandos do Twish no chat da Twitch.",
+  "description": "Atalhos para comandos de pesca do Twish no chat da Twitch, com visual inspirado no Casal Skills.",
   "content_scripts": [
     {
       "matches": [
         "https://www.twitch.tv/*"
       ],
       "js": [
-        "content.js"
+        "content.js",
+        "pesca-theme.js"
       ],
       "run_at": "document_idle",
       "all_frames": true
