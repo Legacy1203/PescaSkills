@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Twish Comandos",
+  "version": "3.1.0",
+  "description": "Atalhos pixel-art para comandos do Twish no chat da Twitch.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.twitch.tv/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}
