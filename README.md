@@ -1,30 +1,32 @@
-# 🎣 Twish Comandos
+# 🎣 PescaSkills
 
-Extensão para **Chrome e Microsoft Edge** que facilita o uso dos comandos do Twish diretamente no chat da Twitch.
+Extensão para **Chrome e Microsoft Edge** criada para facilitar o uso dos comandos de pesca do Twish diretamente no chat da Twitch.
 
-O **Twish Comandos** adiciona uma barra de atalhos ao chat e um menu flutuante com os comandos organizados por categoria, evitando que você precise decorar ou digitar cada comando manualmente.
+O **PescaSkills** adiciona uma barra de atalhos ao chat e um menu flutuante com os comandos organizados por categoria, evitando que você precise decorar ou digitar cada comando manualmente.
 
-> Versão atual: **v3.1.0**
+> A identidade PescaSkills está em desenvolvimento. A última versão pública estável continua sendo a **v3.1.0**.
 
 ## ✨ Principais recursos
 
 - 🎣 Comandos do Twish organizados por categoria
 - ⭐ Até **6 atalhos rápidos personalizáveis**
 - 💾 Atalhos salvos automaticamente no navegador
-- 🕹️ Interface pixel-art integrada à Twitch
+- 🎮 Interface integrada à Twitch
 - 🔗 Acesso direto a páginas como Inventário, Loja e Comandos
 - 💬 Preenchimento dos comandos diretamente no chat
 - 🔒 Sem envio automático de mensagens
 
 ## 📸 Preview
 
+> Os screenshots abaixo ainda representam a versão pública anterior. Novas imagens do PescaSkills serão adicionadas após a finalização do novo visual.
+
 ### Menu flutuante
 
-![Menu flutuante do Twish Comandos](assets/preview-menu.png)
+![Menu flutuante](assets/preview-menu.png)
 
 ### Barra de atalhos rápidos
 
-![Barra de atalhos rápidos do Twish Comandos](assets/preview-atalhos.png)
+![Barra de atalhos rápidos](assets/preview-atalhos.png)
 
 ## 🎮 Menu de comandos
 
@@ -51,7 +53,7 @@ No menu flutuante:
 - `☆` — comando fora da barra rápida
 - `★` — comando selecionado
 - Cards selecionados ficam visualmente destacados
-- O contador mostra quantos espaços estão sendo utilizados (`X/6`)
+- O contador mostra quantos espaços estão sendo utilizados (`Atalhos X/6`)
 
 As preferências são armazenadas localmente no navegador e permanecem disponíveis após atualizar ou fechar a Twitch.
 
@@ -118,7 +120,7 @@ Pull Requests também são bem-vindos.
 
 ## ⚠️ Aviso
 
-Este é um projeto independente criado para facilitar o acesso aos comandos do Twish na Twitch.
+O **PescaSkills** é um projeto independente criado para facilitar o acesso aos comandos do Twish na Twitch.
 
 O projeto não é afiliado, patrocinado ou oficialmente mantido pela Twitch ou pelo Twish. **Twitch**, **Twish** e demais marcas mencionadas pertencem aos seus respectivos proprietários.
 
