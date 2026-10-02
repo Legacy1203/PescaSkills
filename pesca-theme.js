@@ -1,26 +1,46 @@
 (() => {
   "use strict";
-
   const PANEL_ID = "twish-commands-v2-panel";
   const STYLE_ID = "pescaskills-theme";
+  const THEME_STORAGE_KEY = "pescaskills.theme.v1";
+  const DEFAULT_THEME = "skills";
+
+  function getTheme() {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      return saved === "classic" || saved === "skills" ? saved : DEFAULT_THEME;
+    } catch (_) {
+      return DEFAULT_THEME;
+    }
+  }
+
+  function applyTheme(theme) {
+    const normalized = theme === "classic" ? "classic" : "skills";
+    const style = document.getElementById(STYLE_ID);
+    if (style) style.disabled = normalized === "classic";
+    document.documentElement.dataset.pescaskillsTheme = normalized;
+  }
+
+  function setTheme(theme) {
+    const normalized = theme === "classic" ? "classic" : "skills";
+    try { localStorage.setItem(THEME_STORAGE_KEY, normalized); } catch (_) {}
+    applyTheme(normalized);
+    return normalized;
+  }
+
+  window.PescaSkillsTheme = { getTheme, setTheme };
 
   function normalizeCounter(counter) {
     const match = counter.textContent.match(/(\d+)\s*\/\s*(\d+)/);
-    if (match) {
-      const next = `Atalhos ${match[1]}/${match[2]}`;
-      if (counter.textContent !== next) counter.textContent = next;
-    }
+    if (match) counter.textContent = `Atalhos ${match[1]}/${match[2]}`;
   }
 
   function applyBranding() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
-
     const title = panel.querySelector(".twish-header-title");
-    if (title && title.textContent !== "PescaSkills") title.textContent = "PescaSkills";
-
+    if (title) title.textContent = "PescaSkills";
     panel.querySelector(".twish-header-sub")?.remove();
-
     const counter = panel.querySelector(".twish-shortcut-count");
     if (counter) {
       let footer = panel.querySelector(".twish-shortcut-footer");
@@ -39,21 +59,18 @@
     style.id = STYLE_ID;
     style.textContent = `
       #twish-commands-v2-root .twish-px-btn{border:1px solid #7c3cff!important;border-radius:3px!important;background:#111225!important;box-shadow:inset 0 0 0 1px #28145a,0 0 8px rgba(124,60,255,.45)!important;color:#f5f0ff!important}
-      #twish-commands-v2-root .twish-px-btn:hover,#twish-commands-v2-root .twish-px-btn[data-active="true"]{background:#21104d!important;border-color:#b35cff!important;box-shadow:inset 0 0 0 1px #7c3cff,0 0 13px rgba(179,92,255,.8)!important}
+      #twish-commands-v2-root .twish-px-btn:hover,#twish-commands-v2-root .twish-px-btn[data-active="true"]{background:#21104d!important;border-color:#b35cff!important;box-shadow:inset 0 0 0 1px #7c3cff,0 0 13px rgba(124,60,255,.8)!important}
       #twish-commands-v2-root .twish-tip{background:#090b17!important;border:1px solid #7c3cff!important;color:#f5f0ff!important;box-shadow:0 0 10px rgba(124,60,255,.65)!important}
       #twish-commands-v2-root .twish-quick-empty{border:1px dashed rgba(124,60,255,.48)!important;background:rgba(20,12,45,.45)!important}
-
       #twish-commands-v2-panel{border:2px solid #7c3cff!important;background:#090b17!important;color:#f5f0ff!important;box-shadow:inset 0 0 0 1px #26124f,0 0 24px rgba(124,60,255,.55),0 0 45px rgba(18,223,243,.12)!important}
       #twish-commands-v2-panel .twish-header{height:46px!important;padding:0 12px!important;background:linear-gradient(90deg,#090b17 0%,#17102e 55%,#0b1224 100%)!important;border-bottom:1px solid #7c3cff!important;color:#fff!important;text-shadow:0 0 8px rgba(179,92,255,.95)!important;box-shadow:0 3px 12px rgba(124,60,255,.2)!important}
       #twish-commands-v2-panel .twish-header-title{font-size:16px!important;color:#fff!important;letter-spacing:.7px!important}
       #twish-commands-v2-panel .twish-close{background:#111225!important;color:#f5f0ff!important;border:1px solid #7c3cff!important;box-shadow:0 0 7px rgba(124,60,255,.45)!important}
       #twish-commands-v2-panel .twish-close:hover{background:#35106a!important;border-color:#b35cff!important;box-shadow:0 0 12px rgba(179,92,255,.8)!important}
-
       #twish-commands-v2-panel .twish-tabs{gap:5px!important;padding:7px!important;background:#0d0e1c!important;border-bottom:1px solid #32196a!important}
       #twish-commands-v2-panel .twish-tab{border:1px solid #4d2a8f!important;background:#151329!important;color:#cfc4e8!important;box-shadow:none!important}
       #twish-commands-v2-panel .twish-tab:hover{border-color:#7c3cff!important;color:#fff!important;box-shadow:0 0 8px rgba(124,60,255,.38)!important}
       #twish-commands-v2-panel .twish-tab[data-active="true"]{background:linear-gradient(135deg,#38106f,#191b46)!important;border-color:#b35cff!important;color:#fff!important;box-shadow:inset 0 0 0 1px #7c3cff,0 0 10px rgba(124,60,255,.55)!important}
-
       #twish-commands-v2-panel .twish-list{background:radial-gradient(circle at 50% 0%,#17112f 0,#0b0d1b 42%,#070912 100%)!important}
       #twish-commands-v2-panel .twish-card{border:1px solid #353450!important;background:#121421!important;color:#aaa8ba!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02)!important;filter:saturate(.55)!important;opacity:.7!important}
       #twish-commands-v2-panel .twish-card[data-quick-selected="true"]{background:linear-gradient(135deg,#18152d,#11172b)!important;color:#f7f3ff!important;filter:none!important;opacity:1!important;border-color:#7c3cff!important;box-shadow:inset 0 0 0 1px rgba(179,92,255,.25),0 0 9px rgba(124,60,255,.35)!important}
@@ -65,14 +82,21 @@
       #twish-commands-v2-panel .twish-favorite{border:1px solid #49465f!important;background:#171827!important;color:#77758b!important}
       #twish-commands-v2-panel .twish-favorite:hover{background:#24134c!important;color:#fff!important;border-color:#7c3cff!important}
       #twish-commands-v2-panel .twish-favorite[data-selected="true"]{background:#35106a!important;color:#fff!important;border-color:#b35cff!important;box-shadow:inset 0 0 0 1px #7c3cff,0 0 8px rgba(179,92,255,.65)!important}
-
+      #twish-commands-v2-panel .twish-settings-title{color:#f5f0ff!important}
+      #twish-commands-v2-panel .twish-theme-option{border:1px solid #4d2a8f!important;background:#151329!important;color:#cfc4e8!important;box-shadow:none!important}
+      #twish-commands-v2-panel .twish-theme-option:hover{border-color:#7c3cff!important;color:#fff!important;box-shadow:0 0 8px rgba(124,60,255,.38)!important}
+      #twish-commands-v2-panel .twish-theme-option[data-selected="true"]{background:linear-gradient(135deg,#38106f,#191b46)!important;border-color:#b35cff!important;color:#fff!important;box-shadow:inset 0 0 0 1px #7c3cff,0 0 10px rgba(124,60,255,.55)!important}
       #twish-commands-v2-panel .twish-shortcut-footer{height:31px;min-height:31px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;background:#090b17;border-top:1px solid #24144c}
       #twish-commands-v2-panel .twish-shortcut-count{font-size:10px!important;margin-left:0!important;color:#c9baff!important;white-space:nowrap;text-shadow:0 0 7px rgba(124,60,255,.75)!important;border:1px solid #4d2a8f;background:#101222;padding:3px 6px}
     `;
     document.head.appendChild(style);
   }
 
-  const observer = new MutationObserver(() => applyBranding());
-  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  applyTheme(getTheme());
   applyBranding();
+
+  // A Twitch atualiza o DOM constantemente. Evitamos observar a página inteira:
+  // um polling leve mantém o branding aplicado sem reagir a cada mutação interna.
+  const BRANDING_INTERVAL_MS = 750;
+  setInterval(applyBranding, BRANDING_INTERVAL_MS);
 })();
