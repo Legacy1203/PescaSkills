@@ -18,14 +18,13 @@ O **Twish Comandos** adiciona uma barra de atalhos ao chat e um menu flutuante c
 
 ## 📸 Preview
 
-Os screenshots da extensão serão adicionados na pasta `assets/`.
-
-<!--
-Quando os arquivos forem adicionados, use:
+### Menu flutuante
 
 ![Menu flutuante do Twish Comandos](assets/preview-menu.png)
-![Barra de atalhos rápidos](assets/preview-atalhos.png)
--->
+
+### Barra de atalhos rápidos
+
+![Barra de atalhos rápidos do Twish Comandos](assets/preview-atalhos.png)
 
 ## 🎮 Menu de comandos
 
