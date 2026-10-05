@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PescaSkills",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Atalhos para comandos de pesca do Twish no chat da Twitch, com temas Clássico e Skills.",
   "content_scripts": [
     {
