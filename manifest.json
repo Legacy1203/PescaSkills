@@ -9,11 +9,27 @@
         "https://www.twitch.tv/*"
       ],
       "js": [
+        "twish-status-core.js",
+        "smart-selectors-core.js",
         "content.js",
         "pesca-theme.js"
       ],
       "run_at": "document_idle",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "https://twish.com.br/*"
+      ],
+      "js": [
+        "twish-status-core.js",
+        "smart-selectors-core.js",
+        "twish-status.js"
+      ],
+      "run_at": "document_idle"
     }
+  ],
+  "permissions": [
+    "storage"
   ]
 }

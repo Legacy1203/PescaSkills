@@ -1,0 +1,9 @@
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.PescaSkillsSmartCore=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
+  const titleGroups=['shop_titles','titles','rank_titles','pix_titles','earned_titles'];
+  function buildBaitOptions(me,shop){const owned=me?.owned?.baits||{};const meta=new Map((shop?.baits||[]).map(x=>[x.id,x]));return Object.entries(owned).filter(([,n])=>n>0).map(([id,n])=>({...meta.get(id),id,name:meta.get(id)?.name||id,owned:n,equipped:me?.equipment?.bait_id===id})).sort((a,b)=>a.name.localeCompare(b.name));}
+  function buildSellOptions(inv){return (inv?.fish||[]).filter(x=>x.count>0).map(x=>({...x,id:x.fish_id||x.id,totalValue:(x.instances||[]).reduce((s,i)=>s+(Number(i.price)||0),0)})).sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id));}
+  function buildTitleOptions(me,titles){const owned=new Set(me?.owned?.title_ids||[]);const all=titleGroups.flatMap(k=>titles?.[k]||[]);return all.filter(x=>owned.has(x.id)).map(x=>({...x,name:x.male_display_name||x.female_display_name||x.id,equipped:me?.equipment?.title_id===x.id})).sort((a,b)=>a.name.localeCompare(b.name));}
+  function buildShopOptions(shop){return Object.entries(shop||{}).filter(([,v])=>Array.isArray(v)).flatMap(([category,items])=>items.map(x=>({...x,category}))).filter(x=>x.id&&x.name&&Number.isFinite(Number(x.discounted_cost??x.cost))).sort((a,b)=>a.name.localeCompare(b.name));}
+  function buildCommand(kind,id,qty=1){if(kind==='title')return `$titulo ${id}`;const q=Math.max(1,Math.floor(Number(qty)||1));if(kind==='bait')return `$isca ${id} ${q}`;if(kind==='sell')return `$vender ${id} ${q}`;if(kind==='buy')return `$comprar ${id} ${q}`;return ''}
+  return {buildBaitOptions,buildSellOptions,buildTitleOptions,buildShopOptions,buildCommand};
+});

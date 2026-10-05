@@ -4,6 +4,12 @@ Extensão para **Chrome e Microsoft Edge** criada para facilitar o uso dos coman
 
 O **PescaSkills v1.0.0** adiciona uma barra de atalhos ao chat e um menu flutuante com comandos organizados por categoria.
 
+## 🚀 Novas entregas
+
+A versão aprovada com seletores redesenhados inclui pesca inteligente com cooldown, eventos em tempo real, busca de jogadores e seletores de iscas, venda, títulos e compra. Também traz a nomenclatura **Atalho**, versão automática em Ajustes e correções de interface e consistência. O envio dos comandos continua manual.
+
+Confira a descrição completa em [Novas entregas](RELEASE_NOTES.md) e baixe o pacote aprovado na [pacote aprovado](releases/PescaSkills-v1.0.0-seletores-redesign-TESTE.zip).
+
 ## ✨ Principais recursos
 
 - 🎣 Comandos do Twish organizados por categoria
