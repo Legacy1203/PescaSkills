@@ -9,6 +9,26 @@
 
   let lastFishingSignature = "";
   let lastEventSignature = "";
+  let eventApiData = null;
+  let eventApiFetchedAt = 0;
+  let eventRequestPending = false;
+
+  async function fetchEventData() {
+    if (eventRequestPending) return;
+    eventRequestPending = true;
+    const requestedAt = Date.now();
+    try {
+      const response = await fetch("/api/casalskills/events/active", { credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (core.parseTwishEventApi(data, requestedAt) === null) return;
+      eventApiData = data;
+      eventApiFetchedAt = requestedAt;
+      publishEvent(true);
+    } catch (_) {
+      // Keep the DOM fallback if the public endpoint is unavailable.
+    } finally { eventRequestPending = false; }
+  }
 
   function publishFishing(force = false) {
     const parsed = core.parseTwishFishingTitle(document.title);
@@ -33,8 +53,8 @@
   }
 
   function publishEvent(force = false) {
-    const parsed = core.parseTwishEventCandidates(collectEventCandidates());
-    const signature = parsed.active ? `${parsed.name}|${parsed.description}|${parsed.remaining}|${parsed.kind}` : "inactive";
+    const parsed = core.parseTwishEventApi(eventApiData, eventApiFetchedAt) || core.parseTwishEventCandidates(collectEventCandidates());
+    const signature = parsed.active ? `${parsed.name}|${parsed.description}|${parsed.remaining}|${parsed.kind}|${parsed.progressCount}|${parsed.progressTarget}` : "inactive";
     if (!force && signature === lastEventSignature) return;
     lastEventSignature = signature;
     chrome.storage.local.set({ [EVENT_STORAGE_KEY]: { ...parsed, updatedAt: Date.now() } });
@@ -52,11 +72,13 @@
   function publishAll(force = false) { publishFishing(force); publishEvent(force); }
   publishAll(true);
   publishSmartData();
+  fetchEventData();
 
   const title = document.querySelector("title");
   if (title) new MutationObserver(() => publishFishing()).observe(title, { childList: true, characterData: true, subtree: true });
 
   setInterval(() => publishAll(true), 1000);
   setInterval(publishSmartData, 15000);
+  setInterval(fetchEventData, 15000);
   addEventListener("pagehide", () => chrome.storage.local.remove([FISHING_STORAGE_KEY, EVENT_STORAGE_KEY]), { once: true });
 })();

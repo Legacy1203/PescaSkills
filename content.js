@@ -188,7 +188,24 @@
 
     const active = document.createElement("div");
     active.className = "twish-event-active";
-    active.innerHTML = `<span class="twish-event-kicker">${eventUi.kind === "grand" ? "GRANDE EVENTO ATIVO" : "EVENTO ATIVO"}</span><strong>${eventUi.name}</strong><span class="twish-event-time">⏱ ${eventUi.remaining}</span><span class="twish-event-desc">${eventUi.description}</span>`;
+    let details = eventUi.description || "";
+    if (eventUi.name) details = details.replace(new RegExp("\\b" + eventUi.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "gi"), "");
+    if (eventUi.remaining) details = details.split(eventUi.remaining).join("");
+    active.title = details.replace(/^([^\p{L}\p{N}]*?)[!:\-–—•|]+\s*/u, "$1").trim();
+    const name = document.createElement("strong");
+    name.textContent = eventUi.name;
+    const time = document.createElement("span");
+    time.className = "twish-event-time";
+    time.textContent = `⏱ ${eventUi.remaining}`;
+    active.append(name, time);
+    if (eventUi.name === "Barco Misterioso" && Number.isFinite(eventUi.progressCount) && Number.isFinite(eventUi.progressTarget) && eventUi.progressTarget > 0) {
+      active.dataset.hasProgress = "true";
+      const progress = document.createElement("span");
+      progress.className = "twish-event-progress";
+      progress.textContent = `${eventUi.progressCount}/${eventUi.progressTarget}`;
+      progress.setAttribute("aria-label", `${eventUi.progressCount} de ${eventUi.progressTarget} coins arrecadados`);
+      active.appendChild(progress);
+    }
     host.appendChild(active);
   }
 
@@ -204,6 +221,7 @@
       fishingStatusState = result?.[FISHING_STATUS_STORAGE_KEY] || null;
       eventStatusState = result?.[EVENT_STATUS_STORAGE_KEY] || null;
       smartDataState = result?.[SMART_DATA_STORAGE_KEY] || null;
+      window.PescaSkillsAlerts?.observe(fishingStatusState, eventStatusState);
       refreshFishingButtons();
       refreshFishingCards();
       refreshEventUi();
@@ -220,8 +238,42 @@
         eventStatusState = changes[EVENT_STATUS_STORAGE_KEY].newValue || null;
         refreshEventUi();
       }
+      window.PescaSkillsAlerts?.observe(fishingStatusState, eventStatusState);
     });
     setInterval(() => { refreshFishingButtons(); refreshEventUi(); }, 5000);
+  }
+
+  let draggedQuickId = null;
+
+  function moveQuickShortcut(sourceId, targetId, after = false) {
+    const ids = getQuickIds();
+    if (!ids.includes(sourceId) || sourceId === targetId) return;
+    if (targetId !== null && !ids.includes(targetId)) return;
+    const reordered = ids.filter(id => id !== sourceId);
+    const index = targetId === null ? reordered.length : reordered.indexOf(targetId) + Number(after);
+    reordered.splice(index, 0, sourceId);
+    saveQuickIds(reordered);
+    renderQuickBar();
+  }
+
+  function addQuickDropTarget(element, targetId) {
+    element.addEventListener("dragover", event => {
+      if (!draggedQuickId || draggedQuickId === targetId) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      element.classList.add("twish-drop-target");
+    });
+    element.addEventListener("dragleave", () => element.classList.remove("twish-drop-target"));
+    element.addEventListener("drop", event => {
+      if (!draggedQuickId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const sourceId = draggedQuickId;
+      draggedQuickId = null;
+      element.classList.remove("twish-drop-target");
+      const bounds = element.getBoundingClientRect();
+      moveQuickShortcut(sourceId, targetId, event.clientX >= bounds.left + bounds.width / 2);
+    });
   }
 
   function renderQuickBar() {
@@ -240,6 +292,7 @@
       const empty = document.createElement("span");
       empty.className = "twish-quick-empty";
       empty.setAttribute("aria-hidden", "true");
+      addQuickDropTarget(empty, null);
       quick.appendChild(empty);
     }
 
@@ -353,7 +406,60 @@
 
   function isSmartCommand(id) { return ["$isca ", "$comprar ", "$vender ", "$titulo "].includes(id); }
 
-  function runAction(action) {
+  const CLICK_SEND_KEY = "pescaskills.clickSendFishing.v1";
+  let clickSendPending = false;
+
+  function recordClickSend(stage) {
+    const root = document.getElementById(ROOT_ID);
+    if (root) root.setAttribute("data-pescaskills-send-stage", stage);
+  }
+
+  function getClickSendEnabled() {
+    try { return localStorage.getItem(CLICK_SEND_KEY) === "true"; } catch (_) { return false; }
+  }
+
+  function setClickSendEnabled(enabled) {
+    try { localStorage.setItem(CLICK_SEND_KEY, String(Boolean(enabled))); } catch (_) {}
+  }
+
+  function sendFishingFromClick() {
+    recordClickSend("started");
+    if (clickSendPending || !getClickSendEnabled()) return;
+    const editor = findEditor();
+    if (!editor) return;
+    clickSendPending = true;
+    let attempts = 0;
+    const check = () => {
+      const text = editor instanceof HTMLInputElement || editor instanceof HTMLTextAreaElement ? editor.value : editor.textContent;
+      const reason = !getClickSendEnabled() ? "disabled" : !editor.isConnected ? "editor-disconnected" : findEditor() !== editor ? "editor-replaced" : text?.trim() !== "$pescar" ? "text-mismatch" : getFishingUiState().mode === "cooldown" ? "cooldown" : "";
+      if (reason) {
+        recordClickSend("cancelled:" + reason);
+        clickSendPending = false;
+        return;
+      }
+      const button = document.querySelector('[data-a-target="chat-send-button"]');
+      if (button && !button.disabled && button.getAttribute("aria-disabled") !== "true" && button.getBoundingClientRect().width > 0) {
+        recordClickSend("clicking-chat");
+        button.click();
+        clickSendPending = false;
+        setTimeout(() => {
+          const current = findEditor();
+          const remaining = current instanceof HTMLInputElement || current instanceof HTMLTextAreaElement ? current.value : current?.textContent;
+          recordClickSend(remaining?.trim() === "$pescar" ? "chat-clicked:text-remains" : "chat-clicked:field-cleared");
+        }, 250);
+      } else if (++attempts < 10) {
+        setTimeout(check, 50);
+      } else {
+        recordClickSend(button ? "send-button-unavailable" : "send-button-missing");
+        clickSendPending = false;
+      }
+    };
+    // Twitch's editor updates its internal message state after inserting text.
+    // Allow that update to settle before the single send-button click.
+    setTimeout(check, 250);
+  }
+
+  function runAction(action, fromQuick = false) {
     if (isSmartCommand(action.id)) {
       const panel = document.getElementById(PANEL_ID);
       if (panel) { togglePanel(true); openSmartPicker(panel, action.id); }
@@ -373,7 +479,12 @@
       window.open(COMMANDS_URL, "_blank", "noopener,noreferrer");
       return;
     }
-    if (action.command) insertCommand(action.command);
+    if (action.command) {
+      if (fromQuick && action.id === "$pescar") recordClickSend(getClickSendEnabled() ? "shortcut-enabled" : "shortcut-disabled");
+      if (fromQuick && action.id === "$pescar" && clickSendPending) return;
+      insertCommand(action.command);
+      if (fromQuick && action.id === "$pescar" && action.command === "$pescar" && getClickSendEnabled()) sendFishingFromClick();
+    }
   }
 
   function css() {
@@ -384,12 +495,12 @@
       .twish-px-btn{width:34px;height:34px;min-width:34px;padding:0;border:2px solid #2b170d;border-radius:2px;background:#a95f2d;box-shadow:inset 0 0 0 2px #d59a49,3px 3px 0 #1c100a;color:#fff0bd;font:700 16px/1 "Courier New",monospace;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;text-align:center}
       .twish-px-btn>span:first-child{display:flex;width:100%;height:100%;align-items:center;justify-content:center;line-height:1;text-align:center}
       .twish-px-btn:hover,.twish-px-btn[data-active="true"]{background:#c87a38;transform:translate(-1px,-1px);box-shadow:inset 0 0 0 2px #efbd62,4px 4px 0 #1c100a}
-      .twish-px-btn:active{transform:translate(2px,2px);box-shadow:inset 0 0 0 2px #efbd62,1px 1px 0 #1c100a}
+      .twish-px-btn[draggable="true"]{user-select:none}.twish-px-btn.twish-dragging{opacity:.45!important}.twish-drop-target{outline:2px dashed currentColor;outline-offset:2px}.twish-dragging .twish-tip{display:none!important}.twish-px-btn:active{transform:translate(2px,2px);box-shadow:inset 0 0 0 2px #efbd62,1px 1px 0 #1c100a}
       .twish-px-btn[data-fishing-status="cooldown"]{opacity:1;background:#6f5139;color:#cbb891;border-color:#3a281c;box-shadow:inset 0 0 0 2px #8c6a49,3px 3px 0 #1c100a}
       .twish-px-btn[data-fishing-status="available"]{box-shadow:inset 0 0 0 2px #ffe59a,0 0 10px rgba(255,213,90,.72),3px 3px 0 #1c100a}
       .twish-px-btn[data-event-active="true"]{background:#c87a38;box-shadow:inset 0 0 0 2px #ffe59a,0 0 12px rgba(255,213,90,.8),3px 3px 0 #1c100a}
       .twish-event-host{display:none;width:100%;box-sizing:border-box;margin:0 0 6px}.twish-event-host[data-active="true"]{display:block}
-      .twish-event-active{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:5px 10px;padding:10px;border:2px solid #8b5528;background:#f3d89d;box-shadow:inset 0 0 0 2px #fff0c9,3px 3px 0 #72553b;color:#3b2114}.twish-event-kicker{grid-column:1/-1;font-size:9px;font-weight:900;letter-spacing:.8px;color:#8b4d24}.twish-event-active strong{font-size:14px}.twish-event-time{font-size:12px;font-weight:900;justify-self:end}.twish-event-desc{grid-column:1/-1;font-size:10px;line-height:1.35}
+      .twish-event-active{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;height:40px;gap:8px;padding:6px 10px;border:2px solid #8b5528;background:#f3d89d;box-shadow:inset 0 0 0 2px #fff0c9,3px 3px 0 #72553b;color:#3b2114}.twish-event-active strong{min-width:0;font-size:12px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.twish-event-time{font-size:12px;line-height:1.2;font-weight:900;justify-self:end;white-space:nowrap}.twish-event-active[data-has-progress="true"]{height:50px;row-gap:3px;grid-template-rows:auto auto}.twish-event-active[data-has-progress="true"] .twish-event-time{grid-column:2;grid-row:1/3;align-self:center}.twish-event-progress{grid-column:1;grid-row:2;font-size:10px;font-weight:700;line-height:1.1;opacity:.9}
       .twish-card[data-fishing-status="cooldown"]{opacity:.55;filter:saturate(.25);cursor:not-allowed}.twish-card[data-fishing-status="available"]{filter:none}.twish-card[data-event-active="true"]{filter:none;opacity:1;box-shadow:inset 0 0 0 2px #fff0c9,0 0 10px rgba(255,213,90,.72)}
       .twish-smart{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;min-width:0}.twish-smart-head{display:flex;align-items:center;gap:10px;padding-bottom:9px;border-bottom:1px solid rgba(108,60,34,.3)}.twish-smart-back{flex:0 0 auto;border:1px solid #6c3c22;background:#d2bd92;color:#3a210f;padding:7px 9px;font:800 10px "Courier New",monospace;cursor:pointer}.twish-smart-back:hover{background:#ffe9b6}.twish-smart-heading{min-width:0}.twish-smart-title{font-size:14px;font-weight:900;line-height:1.15}.twish-smart-input{width:100%;height:36px;padding:0 11px;border:1px solid #6c3c22;background:#fff3d1;color:#3a210f;font:700 11px "Courier New",monospace;outline:none}.twish-smart-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}.twish-smart-item{min-width:0;display:grid;grid-template-columns:1fr auto;gap:6px 8px;padding:10px;border:1px solid #6c3c22;background:#f4dfad;color:#3b2114;box-shadow:2px 2px 0 rgba(114,85,59,.55)}.twish-smart-item-main{min-width:0}.twish-smart-name{display:block;font-size:11px;font-weight:900;line-height:1.25}.twish-smart-meta{display:block;grid-column:1/-1;font-size:9px;line-height:1.35;color:#765038}.twish-smart-badge{align-self:start;min-height:17px;padding:3px 5px;border:1px solid #8b5528;background:#d69a43;color:#3b2114;font-size:8px;font-weight:900;white-space:nowrap}.twish-smart-badge:empty{display:none}.twish-smart-actions{grid-column:1/-1;display:flex;align-items:center;gap:6px;margin-top:3px;padding-top:8px;border-top:1px solid rgba(108,60,34,.24)}.twish-smart-qty-label{margin-right:auto;font-size:9px;font-weight:800;opacity:.72}.twish-smart-step{width:26px;height:26px;padding:0;border:1px solid #6c3c22;background:#d2bd92;color:#3a210f;font:900 14px/1 "Courier New",monospace;cursor:pointer}.twish-smart-qty-input{width:44px;height:26px;padding:0 4px;border:1px solid #6c3c22;background:#fff3d1;color:#3a210f;text-align:center;font:800 10px "Courier New",monospace}.twish-smart-go{height:27px;padding:0 9px;border:1px solid #542d19;background:#a95f2d;color:#fff0bd;font:900 9px "Courier New",monospace;cursor:pointer}.twish-smart-go:hover{background:#c87a38}.twish-smart-title-action{grid-column:1/-1;justify-self:end;margin-top:3px}.twish-smart-manual{align-self:center;margin-top:2px;padding:7px 12px;border:1px solid #8b6747;background:transparent;color:#594735;font:800 9px "Courier New",monospace;cursor:pointer}.twish-smart-empty{grid-column:1/-1;padding:18px;border:1px dashed rgba(108,60,34,.45);text-align:center;font-size:10px;opacity:.75}@media(max-width:700px){.twish-smart-results{grid-template-columns:1fr}}
       .twish-user-search{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;padding:4px}.twish-user-search-title{font-size:13px;font-weight:900}.twish-user-search-sub{font-size:9px;opacity:.75}.twish-user-search-input{width:100%;padding:9px;border:2px solid #6c3c22;background:#fff3d1;color:#3a210f;font:700 11px "Courier New",monospace;outline:none}.twish-user-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:300px;overflow:auto}.twish-user-result,.twish-user-manual{border:2px solid #6c3c22;background:#d2bd92;color:#3a210f;padding:8px;text-align:left;font:700 10px "Courier New",monospace;cursor:pointer}.twish-user-result:hover,.twish-user-manual:hover{background:#ffe9b6}.twish-user-empty{grid-column:1/-1;padding:12px;font-size:10px;opacity:.7;text-align:center}.twish-user-manual{text-align:center;margin-top:2px}
@@ -399,15 +510,15 @@
       .twish-quick-empty{width:34px;height:34px;display:block;border:2px dashed rgba(213,154,73,.42);background:rgba(90,50,30,.18);box-sizing:border-box}
       #${PANEL_ID}{position:fixed;left:50%;top:50%;right:auto;bottom:auto;width:min(600px,calc(100vw - 32px));height:min(650px,calc(100vh - 48px));max-width:none;max-height:none;transform:translate(-50%,-50%);display:none;flex-direction:column;border:3px solid #2a160c;background:#e7c98c;box-shadow:inset 0 0 0 2px #8c4e28,5px 5px 0 rgba(0,0,0,.5);overflow:hidden;color:#3a2114;z-index:2147483646}
       #${PANEL_ID}[data-open="true"]{display:flex}
-      .twish-header{height:42px;display:flex;align-items:center;padding:0 10px;background:repeating-linear-gradient(0deg,#7d4426 0,#7d4426 8px,#884b29 8px,#884b29 16px);border-bottom:3px solid #2a160c;color:#fff0bd;text-shadow:2px 2px 0 #351b0f;font-weight:900;letter-spacing:.7px}
-      .twish-header-title{font-size:14px;white-space:nowrap}.twish-header-sub{font-size:9px;opacity:.8;margin-left:7px;white-space:nowrap}
+      .twish-header{height:46px;display:flex;align-items:center;padding:0 10px;background:repeating-linear-gradient(0deg,#7d4426 0,#7d4426 8px,#884b29 8px,#884b29 16px);border-bottom:3px solid #2a160c;color:#fff0bd;text-shadow:2px 2px 0 #351b0f;font-weight:900;letter-spacing:.7px}
+      .twish-header-title{font-size:14px;white-space:nowrap;display:flex;align-items:center;flex-shrink:0}.pescaskills-logo{display:block;width:40px;height:40px;max-width:none;object-fit:contain}.twish-header-sub{font-size:9px;opacity:.8;margin-left:7px;white-space:nowrap}
       .twish-shortcut-count{font-size:9px;margin-left:10px;color:#ffe6a6;white-space:nowrap;text-shadow:1px 1px 0 #351b0f}
       .twish-close{margin-left:auto;background:#a64d2d;color:#fff0bd;border:2px solid #2a160c;width:25px;height:25px;min-width:25px;padding:0;font-weight:900;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;text-align:center}
       .twish-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:6px;background:#5a321e;border-bottom:3px solid #2a160c;overflow:visible}
       .twish-tab{min-width:0;height:29px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:2px solid #2a160c;background:#9c592d;color:#ffe6a6;padding:4px 3px;font:700 9px/1 "Courier New",monospace;cursor:pointer;box-shadow:inset 0 0 0 1px #d99a4e;text-align:center;display:flex;align-items:center;justify-content:center}
       .twish-tab[data-active="true"]{background:#d09a4d;color:#2d190f}
       
-      .twish-list{padding:10px;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;flex:1;min-height:0;align-content:start;background:linear-gradient(#efd9a8,#e2c184)}
+      .twish-list{padding:10px;overflow-y:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;flex:1;min-height:0;align-content:start;background-color:#e7c98c;background-image:linear-gradient(rgba(239,217,168,.72),rgba(226,193,132,.72)),url("${chrome.runtime.getURL("assets/pescaskills-background-classic.png")}");background-size:100% 100%,contain;background-position:center;background-repeat:no-repeat;background-attachment:scroll}
       .twish-card{width:100%;min-width:0;display:grid;grid-template-columns:31px 1fr auto 27px;align-items:center;gap:7px;text-align:left;border:2px solid #6c3c22;background:#d2bd92;color:#594735;padding:6px;cursor:pointer;box-shadow:inset 0 0 0 1px #e4d3ae,2px 2px 0 #72553b;font-family:"Courier New",monospace;filter:saturate(.42);opacity:.72;transition:filter .1s,opacity .1s,background .1s,box-shadow .1s}
       .twish-card[data-quick-selected="true"]{background:#f4dfad;color:#3b2114;filter:none;opacity:1;border-color:#6c3c22;box-shadow:inset 0 0 0 2px #fff0c9,0 0 0 2px #d69a43,3px 3px 0 #6f4326}
       .twish-card[data-quick-selected="true"] .twish-card-icon{background:#b96d32;box-shadow:inset 0 0 0 1px #efbd62}
@@ -419,8 +530,9 @@
       .twish-favorite:hover{background:#a77949;color:#fff0bd}
       .twish-favorite[data-selected="true"]{background:#d69a43;color:#fff4b8;border-color:#542d19;box-shadow:inset 0 0 0 1px #f6c96d}
       .twish-settings{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;padding:4px}
-      .twish-settings-title{font-size:13px;font-weight:900;color:#3a210f}
-      .twish-theme-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      .twish-settings-title{font-size:13px;font-weight:900;color:#3a210f}.twish-theme-select{display:block;width:100%;min-height:38px}.twish-auto-row{display:flex;align-items:center;gap:12px}.twish-auto-row .twish-sound-button{width:100px;min-height:34px;justify-content:center;align-items:center;text-transform:uppercase;flex-shrink:0}.twish-auto-description{font-size:11px;line-height:1.4}html[data-pescaskills-theme="skills"] .twish-theme-select{color-scheme:dark}html[data-pescaskills-theme="classic"] .twish-theme-select{color-scheme:light}
+      .twish-sound-section{display:flex;flex-direction:column;gap:8px;margin-top:6px}.twish-sound-row{display:grid;grid-template-columns:100px 110px minmax(70px,1fr) 48px;gap:10px;align-items:center}.twish-sound-row .twish-sound-button{align-items:center;justify-content:center;text-align:center;min-height:34px;padding:7px 8px;text-transform:uppercase;white-space:nowrap}.twish-sound-button:disabled{opacity:.45;cursor:default}.twish-sound-slider{width:100%;min-width:0;margin:0;cursor:pointer;accent-color:#a95f2d}.twish-sound-value{font:700 11px "Courier New",monospace;white-space:nowrap;text-align:right}html[data-pescaskills-theme="skills"] .twish-sound-slider{accent-color:#b35cff}@media(max-width:430px){.twish-sound-row{grid-template-columns:90px 100px minmax(40px,1fr) 40px;gap:5px}}
+      .twish-volume-control{display:flex;flex-direction:column;gap:8px;font-size:11px;font-weight:700}.twish-volume-control input{width:100%;min-width:0;cursor:pointer;accent-color:#a95f2d}.twish-volume-limits{display:flex;justify-content:space-between;font-size:9px;opacity:.8}html[data-pescaskills-theme="skills"] .twish-volume-control input{accent-color:#b35cff}.twish-theme-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
       .twish-theme-option{display:flex;align-items:flex-start;gap:9px;text-align:left;border:2px solid #2a160c;background:#f0cf86;color:#3a210f;padding:10px;cursor:pointer;font:700 10px/1.35 "Courier New",monospace;box-shadow:inset 0 0 0 1px #d99a4e}
       .twish-theme-option[data-selected="true"]{background:#d09a4d;box-shadow:inset 0 0 0 1px #ffe0a0}
       .twish-theme-radio{font-size:14px;line-height:1}.twish-theme-copy{display:flex;flex-direction:column;gap:3px}.twish-theme-name{font-size:11px}.twish-theme-desc{font-size:9px;font-weight:400;opacity:.78}
@@ -432,6 +544,22 @@
     const b = document.createElement("button");
     b.type = "button";
     b.className = "twish-px-btn";
+    b.draggable = true;
+    let suppressClick = false;
+    b.addEventListener("pointerdown", () => { suppressClick = false; });
+    b.addEventListener("dragstart", event => {
+      draggedQuickId = item.id;
+      suppressClick = true;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", item.id);
+      b.classList.add("twish-dragging");
+    });
+    b.addEventListener("dragend", () => {
+      draggedQuickId = null;
+      b.classList.remove("twish-dragging");
+      document.querySelectorAll(`#${ROOT_ID} .twish-drop-target`).forEach(target => target.classList.remove("twish-drop-target"));
+    });
+    addQuickDropTarget(b, item.id);
     b.setAttribute("aria-label", item.label);
     const tip = item.type ? item.label : item.command;
     b.innerHTML = `<span aria-hidden="true">${item.icon}</span><span class="twish-tip">${tip}</span>`;
@@ -443,7 +571,10 @@
       b.dataset.eventButton = "true";
       applyEventStatusToButton(b);
     }
-    b.addEventListener("click", () => runAction(item));
+    b.addEventListener("click", () => {
+      if (suppressClick) return;
+      runAction(item, true);
+    });
     return b;
   }
 
@@ -547,28 +678,71 @@
     const list = panel.querySelector(".twish-list");
     list.replaceChildren();
     const currentTheme = window.PescaSkillsTheme?.getTheme?.() || "skills";
+    const clickSendEnabled = getClickSendEnabled();
+    const soundGroups = [["fishingAlert", "Aviso de Pesca"], ["eventAlert", "Aviso de Evento"]];
+    const soundControls = soundGroups.map(([group, label]) => {
+      const pref = window.PescaSkillsSound.getSettings(group);
+      return `<section class="twish-sound-section" aria-label="${label}"><div class="twish-settings-title">${label}</div><div class="twish-sound-row"><button type="button" class="twish-theme-option twish-sound-button" data-sound-group="${group}" role="switch" aria-checked="${pref.enabled}" aria-label="${label}: ${pref.enabled ? "Ligado" : "Desligado"}" data-selected="${pref.enabled}">${pref.enabled ? "Ligado" : "Desligado"}</button><button type="button" class="twish-theme-option twish-sound-button" data-test-sound="${group}" aria-label="Testar som: ${label}" ${!pref.enabled || !pref.volume ? "disabled" : ""}>Testar som</button><input class="twish-sound-slider" type="range" min="1" max="10" step="1" value="${pref.volume}" data-volume-group="${group}" aria-label="Volume: ${label}"><span class="twish-sound-value"><output data-volume-value="${group}">${pref.volume}</output>/10</span></div></section>`;
+    }).join("");
+    const notificationControls = [["fishing", "Notificação de pesca disponível"], ["event", "Notificação de eventos"]].map(([group, label]) => {
+      const enabled = window.PescaSkillsNotifications?.get(group) === true;
+      return `<section class="twish-sound-section"><div class="twish-settings-title">${label}</div><div class="twish-auto-row"><button type="button" class="twish-theme-option twish-sound-button" data-notification-group="${group}" role="switch" aria-label="${label}" aria-checked="${enabled}" data-selected="${enabled}">${enabled ? "Ligado" : "Desligado"}</button><span class="twish-auto-description">${group === "fishing" ? "Aviso no computador quando a pesca ficar disponível." : "Aviso no computador quando um evento começar."}</span></div></section>`;
+    }).join("");
     const wrap = document.createElement("div");
     wrap.className = "twish-settings";
     wrap.innerHTML = `
       <div class="twish-settings-title">Tema da extensão</div>
-      <div class="twish-theme-options">
-        <button type="button" class="twish-theme-option" data-theme="skills" data-selected="${currentTheme === "skills"}">
-          <span class="twish-theme-radio">${currentTheme === "skills" ? "◉" : "○"}</span>
-          <span class="twish-theme-copy"><span class="twish-theme-name">Tema Skills</span><span class="twish-theme-desc">Visual escuro com roxo neon e detalhes em azul.</span></span>
-        </button>
-        <button type="button" class="twish-theme-option" data-theme="classic" data-selected="${currentTheme === "classic"}">
-          <span class="twish-theme-radio">${currentTheme === "classic" ? "◉" : "○"}</span>
-          <span class="twish-theme-copy"><span class="twish-theme-name">Tema Clássico</span><span class="twish-theme-desc">Visual original marrom e bege da extensão.</span></span>
-        </button>
-      </div>`;
-    wrap.querySelectorAll(".twish-theme-option").forEach(button => {
-      button.addEventListener("click", () => {
-        if (window.PescaSkillsTheme) window.PescaSkillsTheme.setTheme(button.dataset.theme);
+      <select class="twish-theme-option twish-theme-select" data-theme-select aria-label="Tema da extensão">
+        <option value="skills" ${currentTheme === "skills" ? "selected" : ""}>Tema Skills</option>
+        <option value="classic" ${currentTheme === "classic" ? "selected" : ""}>Tema Clássico</option>
+      </select>
+      <div class="twish-settings-title">Arremesso automático</div>
+      <div class="twish-auto-row"><button type="button" class="twish-theme-option twish-sound-button" data-click-send role="switch" aria-label="Arremesso automático" aria-checked="${clickSendEnabled}" data-selected="${clickSendEnabled}">${clickSendEnabled ? "Ligado" : "Desligado"}</button>
+        <span class="twish-auto-description">${clickSendEnabled ? "Um clique no atalho rápido envia $pescar." : "O atalho preenche o chat para você apertar Enter."}</span>
+      </div>
+      ${soundControls}
+      ${notificationControls}`;
+    wrap.querySelectorAll("[data-notification-group]").forEach(button => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await window.PescaSkillsNotifications.toggle(button.dataset.notificationGroup);
         renderSettings(panel);
-      });
+      } catch (error) {
+        button.disabled = false;
+        console.warn("PescaSkills: não foi possível salvar a preferência de notificações.", error);
+      }
+    }));
+    wrap.querySelector("[data-theme-select]").addEventListener("change", event => {
+      if (window.PescaSkillsTheme) window.PescaSkillsTheme.setTheme(event.target.value);
+      renderSettings(panel);
     });
+    wrap.querySelector("[data-click-send]").addEventListener("click", () => {
+      setClickSendEnabled(!clickSendEnabled);
+      renderSettings(panel);
+    });
+    wrap.querySelectorAll("[data-sound-group]").forEach(button => button.addEventListener("click", () => {
+      const group = button.dataset.soundGroup;
+      window.PescaSkillsSound.update(group, {enabled: !window.PescaSkillsSound.getSettings(group).enabled});
+      renderSettings(panel);
+    }));
+    wrap.querySelectorAll("[data-volume-group]").forEach(slider => slider.addEventListener("input", () => {
+      const group = slider.dataset.volumeGroup;
+      window.PescaSkillsSound.update(group, {volume: slider.value});
+      wrap.querySelector(`[data-volume-value="${group}"]`).textContent = String(window.PescaSkillsSound.getSettings(group).volume);
+      const pref = window.PescaSkillsSound.getSettings(group);
+      wrap.querySelector(`[data-test-sound="${group}"]`).disabled = !pref.enabled || !pref.volume;
+    }));
+    wrap.querySelectorAll("[data-test-sound]").forEach(button => button.addEventListener("click", () => {
+      if (button.dataset.testSound === "fishingAlert") window.PescaSkillsSound.playFishingAlert();
+      else window.PescaSkillsSound.playEventAlert();
+    }));
     list.appendChild(wrap);
   }
+
+  window.addEventListener("pescaskills-notification-settings", () => {
+    const panel = document.getElementById(PANEL_ID);
+    if (panel?.dataset.activeGroup === "ajustes") renderSettings(panel);
+  });
 
   function renderGroup(panel, groupId) {
     const group = COMMAND_GROUPS.find(g => g.id === groupId) || COMMAND_GROUPS[0];

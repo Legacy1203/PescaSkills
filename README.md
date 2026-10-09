@@ -6,7 +6,7 @@ O **PescaSkills v1.0.1** adiciona uma barra de atalhos ao chat e um menu flutuan
 
 ## 🚀 Novas entregas
 
-A versão aprovada com seletores redesenhados inclui pesca inteligente com cooldown, eventos em tempo real, busca de jogadores e seletores de iscas, venda, títulos e compra. Também traz a nomenclatura **Atalho**, versão automática em Ajustes e correções de interface e consistência. O envio dos comandos continua manual.
+A versão aprovada com seletores redesenhados inclui pesca inteligente com cooldown, eventos em tempo real, busca de jogadores e seletores de iscas, venda, títulos e compra. Também traz a nomenclatura **Atalho**, versão automática em Ajustes e correções de interface e consistência. O envio é manual por padrão; o Arremesso automático opcional envia apenas $pescar quando o usuário clica no atalho rápido.
 
 Confira a descrição completa em [Novas entregas](RELEASE_NOTES.md) e baixe o pacote aprovado na [pacote aprovado](releases/PescaSkills-v1.0.1.zip).
 
@@ -20,11 +20,15 @@ Confira a descrição completa em [Novas entregas](RELEASE_NOTES.md) e baixe o p
 - 💬 Preenchimento dos comandos diretamente no chat
 - ⚙️ Menu **Ajustes**
 - 🎨 **Tema Skills** e **Tema Clássico**, com preferência salva no navegador
-- 🔒 Sem envio automático de mensagens
+- 🔊 Alertas de pesca e eventos, com volumes inteiros de 1 a 10
+- 🔔 Notificações do computador, com controles separados de pesca e eventos
+- 🚢 Progresso do Barco Misterioso consultado pela API a cada 15 segundos
+- 🖱️ Organização dos atalhos por arrastar, mantendo o menu fixo
+- 🎣 Arremesso automático opcional ao clicar no atalho de pesca
 
 ## 🎨 Temas
 
-Abra o menu `≡` e acesse **⚙ Ajustes** para trocar a aparência da extensão.
+Abra o menu `≡` e acesse **⚙ Ajustes** para trocar a aparência da extensão pelo menu de seleção de tema.
 
 - **Tema Skills** — visual escuro com roxo neon e detalhes em azul. É o tema padrão.
 - **Tema Clássico** — visual original marrom e bege da extensão.
@@ -44,13 +48,13 @@ Os comandos são separados em categorias:
 - ❓ Ajuda
 - ⚙ Ajustes
 
-Ao clicar em um comando de chat, a extensão preenche o campo de mensagem da Twitch. **A mensagem não é enviada automaticamente**: o usuário continua responsável por pressionar Enter.
+Ao clicar em um comando de chat, a extensão preenche o campo de mensagem da Twitch. Por padrão, o usuário pressiona Enter. Ao ativar **Arremesso automático** em Ajustes, um clique no atalho rápido envia $pescar quando a pesca não está em cooldown. Os demais comandos permanecem manuais.
 
 ## ⭐ Barra de atalhos personalizável
 
 Você pode escolher até **6 comandos** para deixar disponíveis diretamente na barra rápida. Use `☆` para adicionar e `★` para remover um atalho. O contador mostra os espaços utilizados (`Atalhos X/6`).
 
-As preferências são armazenadas localmente no navegador. O botão `≡` fica sempre disponível e não ocupa um dos seis espaços personalizáveis.
+Clique e arraste os atalhos para organizar suas posições. As preferências são armazenadas localmente no navegador. O botão `≡` fica sempre disponível e não ocupa um dos seis espaços personalizáveis.
 
 ## 🔗 Acesso direto ao Twish
 
@@ -66,7 +70,7 @@ Alguns recursos podem ser abertos diretamente em uma nova aba, incluindo Invent�
 4. Ative o **Modo do desenvolvedor**.
 5. Clique em **Carregar sem compactação**.
 6. Selecione a pasta extraída que contém `manifest.json`.
-7. Abra ou atualize uma página da Twitch.
+7. Recarregue as páginas da Twitch e do Twish. Mantenha o Twish aberto e conectado no mesmo navegador.
 
 ### Microsoft Edge
 
@@ -84,7 +88,7 @@ Depois da instalação, abra um canal da Twitch que utilize o Twish. A barra de 
 
 ## 🔒 Privacidade e automação
 
-A extensão funciona localmente no navegador e armazena as preferências localmente. O projeto **não envia mensagens automaticamente** e não foi desenvolvido para automatizar pesca, contornar cooldowns ou executar comandos repetidamente.
+A extensão funciona localmente no navegador e armazena as preferências localmente. O envio é manual por padrão. A opção Arremesso automático envia $pescar apenas após o clique do usuário no atalho rápido; não realiza pescas sozinha, não contorna cooldowns nem executa comandos repetidamente. As notificações começam desligadas e dependem das permissões do navegador e das configurações do Windows.
 
 ## 🛠️ Tecnologias
 

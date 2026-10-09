@@ -1,3 +1,20 @@
+# Atualização aprovada — 9 de outubro de 2026
+
+- Logos com transparência; arte em pixel art no Tema Clássico.
+- Versão exibida em todas as abas do menu.
+- Atalhos organizáveis por arrastar, com menu fixo.
+- Eventos compactos e descrição ao passar o mouse, sem repetir nome ou tempo.
+- Progresso real do Barco Misterioso abaixo do nome, atualizado pela API a cada 15 segundos durante a arrecadação.
+- Novos sons de pesca disponível e eventos, controles separados e volumes inteiros de 1 a 10.
+- Testar som e botões Ligado/Desligado.
+- Seleção de tema por dropdown.
+- Arremesso automático opcional: envia $pescar somente ao clicar no atalho rápido.
+- Notificações do computador com controles independentes, desligadas por padrão e sem repetição nas atualizações do estado.
+
+Após atualizar a extensão, recarregue Twitch e Twish. As notificações dependem das permissões do navegador e das configurações do sistema.
+
+## Histórico anterior
+
 ## 🚀 Novas entregas
 
 Esta atualização expande o PescaSkills para além dos atalhos de comandos, trazendo integração mais inteligente com os dados e estados do Twish.

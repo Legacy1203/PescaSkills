@@ -2,7 +2,10 @@
   "manifest_version": 3,
   "name": "PescaSkills",
   "version": "1.0.1",
-  "description": "Atalhos para comandos de pesca do Twish no chat da Twitch, com temas Clássico e Skills.",
+  "background": {
+    "service_worker": "notification-worker.js"
+  },
+  "description": "Atalhos para comandos de pesca do Twish no chat da Twitch, com temas ClÃƒÂ¡ssico e Skills.",
   "content_scripts": [
     {
       "matches": [
@@ -11,6 +14,9 @@
       "js": [
         "twish-status-core.js",
         "smart-selectors-core.js",
+        "fishing-sound.js",
+        "alert-state.js",
+        "notification-settings.js",
         "content.js",
         "pesca-theme.js"
       ],
@@ -29,7 +35,23 @@
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/pescaskills-logo.png",
+        "assets/pescaskills-background.png",
+        "assets/pescaskills-logo-classic.png",
+        "assets/pescaskills-background-classic.png",
+        "assets/fishing-ready.mp3",
+        "assets/event-ready.mp3"
+      ],
+      "matches": [
+        "https://www.twitch.tv/*"
+      ]
+    }
+  ],
   "permissions": [
-    "storage"
+    "storage",
+    "notifications"
   ]
 }

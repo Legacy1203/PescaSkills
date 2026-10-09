@@ -19,6 +19,7 @@
     const style = document.getElementById(STYLE_ID);
     if (style) style.disabled = normalized === "classic";
     document.documentElement.dataset.pescaskillsTheme = normalized;
+    applyBranding();
   }
 
   function setTheme(theme) {
@@ -43,7 +44,21 @@
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
     const title = panel.querySelector(".twish-header-title");
-    if (title) title.textContent = "PescaSkills";
+    if (title && !title.querySelector(".pescaskills-logo")) {
+      const logo = document.createElement("img");
+      logo.className = "pescaskills-logo";
+      logo.src = chrome.runtime.getURL("assets/pescaskills-logo.png");
+      logo.alt = "PescaSkills";
+      logo.width = 40;
+      logo.height = 40;
+      title.replaceChildren(logo);
+    }
+    const logo = title?.querySelector(".pescaskills-logo");
+    if (logo) {
+      const asset = document.documentElement.dataset.pescaskillsTheme === "classic" ? "pescaskills-logo-classic.png" : "pescaskills-logo.png";
+      const source = chrome.runtime.getURL(`assets/${asset}`);
+      if (logo.src !== source) logo.src = source;
+    }
     panel.querySelector(".twish-header-sub")?.remove();
     const counter = panel.querySelector(".twish-shortcut-count");
     if (counter) {
@@ -86,7 +101,7 @@
       #twish-commands-v2-panel .twish-tab{border:1px solid #4d2a8f!important;background:#151329!important;color:#cfc4e8!important;box-shadow:none!important}
       #twish-commands-v2-panel .twish-tab:hover{border-color:#7c3cff!important;color:#fff!important;box-shadow:0 0 8px rgba(124,60,255,.38)!important}
       #twish-commands-v2-panel .twish-tab[data-active="true"]{background:linear-gradient(135deg,#38106f,#191b46)!important;border-color:#b35cff!important;color:#fff!important;box-shadow:inset 0 0 0 1px #7c3cff,0 0 10px rgba(124,60,255,.55)!important}
-      #twish-commands-v2-panel .twish-list{background:radial-gradient(circle at 50% 0%,#17112f 0,#0b0d1b 42%,#070912 100%)!important}
+      #twish-commands-v2-panel .twish-list{background-color:#090b17!important;background-image:linear-gradient(rgba(9,11,23,.60),rgba(9,11,23,.60)),url("${chrome.runtime.getURL("assets/pescaskills-background.png")}")!important;background-size:100% 100%,contain!important;background-position:center!important;background-repeat:no-repeat!important;background-attachment:scroll!important}
       #twish-commands-v2-panel .twish-card{border:1px solid #353450!important;background:#121421!important;color:#aaa8ba!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02)!important;filter:saturate(.55)!important;opacity:.7!important}
       #twish-commands-v2-panel .twish-card[data-quick-selected="true"]{background:linear-gradient(135deg,#18152d,#11172b)!important;color:#f7f3ff!important;filter:none!important;opacity:1!important;border-color:#7c3cff!important;box-shadow:inset 0 0 0 1px rgba(179,92,255,.25),0 0 9px rgba(124,60,255,.35)!important}
       #twish-commands-v2-panel .twish-card:hover{background:#18162d!important;border-color:#8e4dff!important;filter:none!important;opacity:1!important;box-shadow:0 0 10px rgba(124,60,255,.4)!important}
@@ -106,8 +121,8 @@
       #twish-commands-v2-panel .twish-theme-option[data-selected="true"]{background:linear-gradient(135deg,#38106f,#191b46)!important;border-color:#b35cff!important;color:#fff!important;box-shadow:inset 0 0 0 1px #7c3cff,0 0 10px rgba(124,60,255,.55)!important}
       #twish-commands-v2-panel .twish-smart-head{border-bottom-color:#2b2450!important}#twish-commands-v2-panel .twish-smart-back{border:1px solid #4d2a8f!important;background:#151329!important;color:#cfc4e8!important}#twish-commands-v2-panel .twish-smart-back:hover{border-color:#7c3cff!important;background:#21104d!important;color:#fff!important}#twish-commands-v2-panel .twish-smart-title{color:#f5f0ff!important}#twish-commands-v2-panel .twish-smart-input{border:1px solid #4d2a8f!important;background:#0a0c18!important;color:#f5f0ff!important;border-radius:3px!important}#twish-commands-v2-panel .twish-smart-input:focus{border-color:#b35cff!important;box-shadow:0 0 0 2px rgba(124,60,255,.18),0 0 10px rgba(124,60,255,.3)!important}#twish-commands-v2-panel .twish-smart-item{border:1px solid #34315b!important;background:linear-gradient(135deg,#151625,#101321)!important;color:#f5f0ff!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 3px 10px rgba(0,0,0,.18)!important;border-radius:4px!important}#twish-commands-v2-panel .twish-smart-item:hover{border-color:#6840b6!important;background:linear-gradient(135deg,#19172d,#11172b)!important}#twish-commands-v2-panel .twish-smart-meta{color:#9895aa!important}#twish-commands-v2-panel .twish-smart-badge{border:1px solid #12dff3!important;background:#102a38!important;color:#6ff4ff!important;box-shadow:0 0 8px rgba(18,223,243,.2)!important}#twish-commands-v2-panel .twish-smart-actions{border-top-color:#2b2942!important}#twish-commands-v2-panel .twish-smart-qty-label{color:#9895aa!important}#twish-commands-v2-panel .twish-smart-step{border:1px solid #4d2a8f!important;background:#151329!important;color:#f5f0ff!important;border-radius:3px!important}#twish-commands-v2-panel .twish-smart-step:hover{background:#21104d!important;border-color:#8e4dff!important}#twish-commands-v2-panel .twish-smart-qty-input{border:1px solid #4d2a8f!important;background:#0a0c18!important;color:#fff!important;border-radius:3px!important}#twish-commands-v2-panel .twish-smart-go{border:1px solid #b35cff!important;background:linear-gradient(135deg,#4c168e,#29205d)!important;color:#fff!important;border-radius:3px!important;box-shadow:0 0 8px rgba(124,60,255,.28)!important}#twish-commands-v2-panel .twish-smart-go:hover{background:linear-gradient(135deg,#6320b2,#333078)!important;box-shadow:0 0 12px rgba(179,92,255,.5)!important}#twish-commands-v2-panel .twish-smart-manual{border:1px solid #3d3857!important;background:#10111d!important;color:#9895aa!important;border-radius:3px!important}#twish-commands-v2-panel .twish-smart-manual:hover{border-color:#6840b6!important;color:#f5f0ff!important;background:#171528!important}#twish-commands-v2-panel .twish-smart-empty{border-color:#3d3857!important;color:#9895aa!important}
       #twish-commands-v2-panel .twish-shortcut-footer{height:31px;min-height:31px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;background:#090b17;border-top:1px solid #24144c}
-      #twish-commands-v2-panel .pescaskills-version{display:none;font-size:9px;color:#85849a;white-space:nowrap}
-      #twish-commands-v2-panel[data-active-group="ajustes"] .pescaskills-version{display:inline}
+      #twish-commands-v2-panel .pescaskills-version{display:inline;font-size:9px;color:#85849a;white-space:nowrap}
+
       #twish-commands-v2-panel .twish-shortcut-count{font-size:10px!important;margin-left:0!important;color:#c9baff!important;white-space:nowrap;text-shadow:0 0 7px rgba(124,60,255,.75)!important;border:1px solid #4d2a8f;background:#101222;padding:3px 6px}
     `;
     document.head.appendChild(style);
