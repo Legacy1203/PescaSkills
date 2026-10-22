@@ -1,3 +1,19 @@
+# PescaSkills v1.0.3 — 22 de outubro de 2026
+
+- Consultas ao Twish no processo de segundo plano, agendadas aproximadamente a cada 30 segundos enquanto houver uma aba do CasalSkills no Twish aberta.
+- Histórico de hoje na aba Eventos: nome, horário de detecção em Brasília, andamento e encerramento confirmado; persistência local e deduplicação.
+- Registro de eventos regulares e grandes eventos simultâneos, sem recuperar períodos não acompanhados.
+- Dados antigos descartados ao iniciar uma nova sessão; resposta atrasada e aba antiga não sobrescrevem informações mais recentes.
+- Contadores calculados por horário absoluto; seletores verificam a validade de cada conjunto de dados.
+- Histórico e notificações preservados; nova sincronização após lacunas longas não dispara avisos antigos.
+- Novas permissões: alarms e acesso apenas ao host https://twish.com.br/*.
+
+Após atualizar, recarregue a extensão e as páginas da Twitch e do Twish. Mantenha o Twish do CasalSkills aberto e conectado. O agendamento pode atrasar conforme o navegador e a suspensão do computador.
+
+[Baixar o pacote aprovado 1.0.3](releases/PescaSkills-v1.0.3.zip)
+
+## Histórico de versões anteriores
+
 # Atualização aprovada — 9 de outubro de 2026
 
 - Logos com transparência; arte em pixel art no Tema Clássico.

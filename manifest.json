@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PescaSkills",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "background": {
     "service_worker": "notification-worker.js"
   },
@@ -17,6 +17,7 @@
         "fishing-sound.js",
         "alert-state.js",
         "notification-settings.js",
+        "event-history.js",
         "content.js",
         "pesca-theme.js"
       ],
@@ -28,8 +29,6 @@
         "https://twish.com.br/*"
       ],
       "js": [
-        "twish-status-core.js",
-        "smart-selectors-core.js",
         "twish-status.js"
       ],
       "run_at": "document_idle"
@@ -52,6 +51,10 @@
   ],
   "permissions": [
     "storage",
-    "notifications"
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://twish.com.br/*"
   ]
 }

@@ -2,13 +2,13 @@
 
 Extensão para **Chrome e Microsoft Edge** criada para facilitar o uso dos comandos de pesca do Twish diretamente no chat da Twitch.
 
-O **PescaSkills v1.0.1** adiciona uma barra de atalhos ao chat e um menu flutuante com comandos organizados por categoria.
+O **PescaSkills v1.0.3** adiciona uma barra de atalhos ao chat e um menu flutuante com comandos organizados por categoria.
 
 ## 🚀 Novas entregas
 
-A versão aprovada com seletores redesenhados inclui pesca inteligente com cooldown, eventos em tempo real, busca de jogadores e seletores de iscas, venda, títulos e compra. Também traz a nomenclatura **Atalho**, versão automática em Ajustes e correções de interface e consistência. O envio é manual por padrão; o Arremesso automático opcional envia apenas $pescar quando o usuário clica no atalho rápido.
+A versão 1.0.3 inclui histórico diário dos eventos acompanhados pela extensão e consultas ao Twish pelo processo de segundo plano. Também corrige dados antigos após reabrir o navegador, conflitos entre abas e respostas atrasadas. O envio é manual por padrão; o Arremesso automático opcional envia apenas $pescar quando o usuário clica no atalho rápido e a disponibilidade está confirmada.
 
-Confira a descrição completa em [Novas entregas](RELEASE_NOTES.md) e baixe o pacote aprovado na [pacote aprovado](releases/PescaSkills-v1.0.1.zip).
+Confira a descrição completa em [Novas entregas](RELEASE_NOTES.md) e baixe o [pacote aprovado](releases/PescaSkills-v1.0.3.zip).
 
 ## ✨ Principais recursos
 
@@ -22,7 +22,9 @@ Confira a descrição completa em [Novas entregas](RELEASE_NOTES.md) e baixe o p
 - 🎨 **Tema Skills** e **Tema Clássico**, com preferência salva no navegador
 - 🔊 Alertas de pesca e eventos, com volumes inteiros de 1 a 10
 - 🔔 Notificações do computador, com controles separados de pesca e eventos
-- 🚢 Progresso do Barco Misterioso consultado pela API a cada 15 segundos
+- 🚢 Progresso do Barco Misterioso consultado pela API em intervalos de aproximadamente 30 segundos
+- 📜 Histórico de hoje na aba Eventos, com horário de detecção em Brasília e estado confirmado
+- 🔄 Sincronização em segundo plano, sem depender dos temporizadores da aba
 - 🖱️ Organização dos atalhos por arrastar, mantendo o menu fixo
 - 🎣 Arremesso automático opcional ao clicar no atalho de pesca
 
@@ -48,13 +50,21 @@ Os comandos são separados em categorias:
 - ❓ Ajuda
 - ⚙ Ajustes
 
-Ao clicar em um comando de chat, a extensão preenche o campo de mensagem da Twitch. Por padrão, o usuário pressiona Enter. Ao ativar **Arremesso automático** em Ajustes, um clique no atalho rápido envia $pescar quando a pesca não está em cooldown. Os demais comandos permanecem manuais.
+Ao clicar em um comando de chat, a extensão preenche o campo de mensagem da Twitch. Por padrão, o usuário pressiona Enter. Ao ativar **Arremesso automático** em Ajustes, um clique no atalho rápido envia $pescar quando a disponibilidade da pesca está confirmada. Os demais comandos permanecem manuais.
 
 ## ⭐ Barra de atalhos personalizável
 
 Você pode escolher até **6 comandos** para deixar disponíveis diretamente na barra rápida. Use `☆` para adicionar e `★` para remover um atalho. O contador mostra os espaços utilizados (`Atalhos X/6`).
 
 Clique e arraste os atalhos para organizar suas posições. As preferências são armazenadas localmente no navegador. O botão `≡` fica sempre disponível e não ocupa um dos seis espaços personalizáveis.
+
+## 📜 Histórico e sincronização
+
+O histórico mostra os eventos detectados no dia, com os mais recentes primeiro. O horário exibido é o da detecção, no fuso de Brasília. Os registros ficam salvos no navegador ao fechar e reabrir, mas eventos que ocorreram sem acompanhamento não são recuperados. O dia exibido muda à meia-noite de Brasília.
+
+O processo da extensão consulta as APIs do Twish em intervalos de aproximadamente 30 segundos enquanto houver uma aba do CasalSkills no Twish aberta e a sessão estiver válida. O navegador pode atrasar o agendamento, especialmente quando o computador estiver suspenso. Dados sem confirmação recente deixam de ser exibidos como atuais. As consultas usam a sessão existente do navegador; não enviam comandos de pesca.
+
+Na atualização, permita o acesso ao Twish se solicitado pelo navegador. A permissão alarms agenda as consultas, e o acesso ao host limita-se a https://twish.com.br/*.
 
 ## 🔗 Acesso direto ao Twish
 
@@ -80,7 +90,7 @@ Alguns recursos podem ser abertos diretamente em uma nova aba, incluindo Invent�
 4. Ative o **Modo de desenvolvedor**.
 5. Clique em **Carregar sem compactação**.
 6. Selecione a pasta extraída que contém `manifest.json`.
-7. Abra ou atualize uma página da Twitch.
+7. Recarregue as páginas da Twitch e do Twish. Mantenha o Twish do CasalSkills aberto e conectado no mesmo navegador.
 
 ## 🚀 Como usar
 

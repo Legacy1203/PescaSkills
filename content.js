@@ -13,6 +13,8 @@
   const FISHING_STATUS_STORAGE_KEY = "pescaskills.fishingStatus.v1";
   const EVENT_STATUS_STORAGE_KEY = "pescaskills.eventStatus.v1";
   const SMART_DATA_STORAGE_KEY = "pescaskills.smartData.v1";
+  const EVENT_HISTORY_STORAGE_KEY = "pescaskills.eventHistory.v1";
+  let eventHistoryState = null;
   let smartDataState = null;
   let fishingStatusState = null;
   let eventStatusState = null;
@@ -151,7 +153,7 @@
     const ui = getFishingUiState();
     card.dataset.fishingStatus = ui.mode;
     const desc = card.querySelector(".twish-card-desc");
-    if (desc && ui.mode !== "unknown") desc.textContent = ui.tooltip;
+    if (desc) desc.textContent = ui.tooltip;
   }
 
   function refreshFishingCards() {
@@ -175,7 +177,7 @@
     const ui = getEventUiState();
     card.dataset.eventActive = String(ui.active);
     const desc = card.querySelector(".twish-card-desc");
-    if (desc && ui.active) desc.textContent = ui.tooltip;
+    if (desc) desc.textContent = ui.active ? ui.tooltip : "Consulte os eventos do Twish.";
   }
 
   function renderQuickEventStatus() {
@@ -216,31 +218,53 @@
   }
 
   function startFishingStatusSync() {
-    if (!chrome?.storage?.local) return;
-    chrome.storage.local.get([FISHING_STATUS_STORAGE_KEY, EVENT_STATUS_STORAGE_KEY, SMART_DATA_STORAGE_KEY], result => {
-      fishingStatusState = result?.[FISHING_STATUS_STORAGE_KEY] || null;
-      eventStatusState = result?.[EVENT_STATUS_STORAGE_KEY] || null;
-      smartDataState = result?.[SMART_DATA_STORAGE_KEY] || null;
+    if (!chrome?.storage?.local || !chrome?.runtime?.sendMessage) return;
+    let sessionId = null, reading = false;
+    const buffered = [];
+    function accept(key, state, removed = false) {
+      if (key !== EVENT_HISTORY_STORAGE_KEY && state && state.sessionId !== sessionId) return;
+      const previous = key === EVENT_HISTORY_STORAGE_KEY ? eventHistoryState : key === FISHING_STATUS_STORAGE_KEY ? fishingStatusState : key === EVENT_STATUS_STORAGE_KEY ? eventStatusState : smartDataState;
+      if (!removed && previous && (!state || state.updatedAt < previous.updatedAt)) return;
+      if (key === FISHING_STATUS_STORAGE_KEY) fishingStatusState = state || null;
+      if (key === EVENT_STATUS_STORAGE_KEY) eventStatusState = state || null;
+      if (key === SMART_DATA_STORAGE_KEY) smartDataState = state || null;
+      if (key === EVENT_HISTORY_STORAGE_KEY) eventHistoryState = state || null;
+    }
+    function refresh() {
+      refreshFishingButtons(); refreshFishingCards(); refreshEventUi();
+      renderEventHistory();
+      document.querySelectorAll(".twish-smart").forEach(wrap => wrap.refreshSmart?.());
       window.PescaSkillsAlerts?.observe(fishingStatusState, eventStatusState);
-      refreshFishingButtons();
-      refreshFishingCards();
-      refreshEventUi();
-    });
+    }
+    async function read() {
+      if (reading) return;
+      reading = true;
+      try {
+        const result = await chrome.runtime.sendMessage({ type: "pescaskills.sync.read" });
+        if (!result?.ok) return;
+        if (sessionId !== result.sessionId) fishingStatusState = eventStatusState = smartDataState = null;
+        sessionId = result.sessionId;
+        for (const key of [FISHING_STATUS_STORAGE_KEY, EVENT_STATUS_STORAGE_KEY, SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY]) accept(key, result.states?.[key]);
+        buffered.splice(0).forEach(([key,state,removed]) => accept(key,state,removed));
+        refresh();
+      } catch (_) {} finally { reading = false; }
+    }
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;
-      if (changes[FISHING_STATUS_STORAGE_KEY]) {
-        fishingStatusState = changes[FISHING_STATUS_STORAGE_KEY].newValue || null;
-        refreshFishingButtons();
-        refreshFishingCards();
+      for (const key of [FISHING_STATUS_STORAGE_KEY, EVENT_STATUS_STORAGE_KEY, SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY]) {
+        if (!changes[key]) continue;
+        const value = changes[key].newValue;
+        if (!sessionId) buffered.push([key,value,!value]);
+        else accept(key,value,!value);
       }
-      if (changes[SMART_DATA_STORAGE_KEY]) smartDataState = changes[SMART_DATA_STORAGE_KEY].newValue || null;
-      if (changes[EVENT_STATUS_STORAGE_KEY]) {
-        eventStatusState = changes[EVENT_STATUS_STORAGE_KEY].newValue || null;
-        refreshEventUi();
-      }
-      window.PescaSkillsAlerts?.observe(fishingStatusState, eventStatusState);
+      refresh();
     });
-    setInterval(() => { refreshFishingButtons(); refreshEventUi(); }, 5000);
+    read();
+    setInterval(() => { refresh(); if (!sessionId) read(); }, 1000);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") read(); });
+    window.addEventListener("pageshow", event => { if (event.persisted) read(); });
+    window.addEventListener("focus", read);
+    window.addEventListener("online", read);
   }
 
   let draggedQuickId = null;
@@ -431,7 +455,7 @@
     let attempts = 0;
     const check = () => {
       const text = editor instanceof HTMLInputElement || editor instanceof HTMLTextAreaElement ? editor.value : editor.textContent;
-      const reason = !getClickSendEnabled() ? "disabled" : !editor.isConnected ? "editor-disconnected" : findEditor() !== editor ? "editor-replaced" : text?.trim() !== "$pescar" ? "text-mismatch" : getFishingUiState().mode === "cooldown" ? "cooldown" : "";
+      const reason = !getClickSendEnabled() ? "disabled" : !editor.isConnected ? "editor-disconnected" : findEditor() !== editor ? "editor-replaced" : text?.trim() !== "$pescar" ? "text-mismatch" : getFishingUiState().mode !== "available" ? "not-synchronized" : "";
       if (reason) {
         recordClickSend("cancelled:" + reason);
         clickSendPending = false;
@@ -483,12 +507,13 @@
       if (fromQuick && action.id === "$pescar") recordClickSend(getClickSendEnabled() ? "shortcut-enabled" : "shortcut-disabled");
       if (fromQuick && action.id === "$pescar" && clickSendPending) return;
       insertCommand(action.command);
-      if (fromQuick && action.id === "$pescar" && action.command === "$pescar" && getClickSendEnabled()) sendFishingFromClick();
+      if (fromQuick && action.id === "$pescar" && action.command === "$pescar" && getClickSendEnabled() && getFishingUiState().mode === "available") sendFishingFromClick();
     }
   }
 
   function css() {
     return `
+      .pescaskills-history{grid-column:1/-1;min-width:0;border:1px solid #6c3c22;padding:12px;background:rgba(244,223,173,.95);color:#3b2114}.pescaskills-history h3{margin:0 0 6px;font:700 14px/1.3 "Courier New",monospace}.pescaskills-history-note,.pescaskills-history-empty{font-size:11px;line-height:1.5;margin:0 0 10px}.pescaskills-history-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}.pescaskills-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;padding:9px;border:1px solid rgba(108,60,34,.35);background:rgba(255,243,209,.65);font-size:11px}.pescaskills-history-row strong{min-width:0;overflow-wrap:anywhere}.pescaskills-history-status{grid-column:1/-1;font-size:10px;opacity:.85}.pescaskills-history-row time{font-variant-numeric:tabular-nums;white-space:nowrap}html[data-pescaskills-theme="skills"] .pescaskills-history{background:rgba(18,20,33,.96);border-color:#4d2a8f;color:#f5f0ff}html[data-pescaskills-theme="skills"] .pescaskills-history-row{background:#151329;border-color:#353450}html[data-pescaskills-theme="skills"] .pescaskills-history-note{color:#bfb6d3}
       #${ROOT_ID}{position:relative;width:100%;box-sizing:border-box;margin:0 0 7px;font-family:"Courier New",monospace;z-index:50}
       #${ROOT_ID} *{box-sizing:border-box}
       .twish-quick{display:grid;grid-template-columns:repeat(7,34px);justify-content:space-between;gap:4px;align-items:center;width:100%;padding:0 2px}
@@ -642,7 +667,9 @@
 
   function smartConfig(command) {
     const core = globalThis.PescaSkillsSmartCore;
-    const d = smartDataState?.data || {};
+    const required = command === "$isca " ? ["me","shop"] : command === "$vender " ? ["me","inventory"] : command === "$titulo " ? ["me","titles"] : ["shop"];
+    const d = globalThis.PescaSkillsStatusCore?.getSmartData(smartDataState, required);
+    if (!d) return null;
     if (!core) return null;
     if (command === "$isca ") return { kind:"bait", title:"Equipar isca", sub:"Somente iscas que você possui.", options:core.buildBaitOptions(d.me,d.shop), manual:"$isca " };
     if (command === "$vender ") return { kind:"sell", title:"Vender peixe", sub:"Somente peixes do seu inventário.", options:core.buildSellOptions(d.inventory), manual:"$vender " };
@@ -653,15 +680,17 @@
 
   function openSmartPicker(panel, command) {
     const list = panel.querySelector(".twish-list"); list.replaceChildren();
-    const cfg = smartConfig(command); const wrap = document.createElement("div"); wrap.className="twish-smart";
+    let cfg = smartConfig(command); const wrap = document.createElement("div"); wrap.className="twish-smart";
     if (!cfg || !smartDataState?.data) {
-      wrap.innerHTML=`<div class="twish-smart-head"><button class="twish-smart-back" type="button">← Voltar</button><div class="twish-smart-heading"><div class="twish-smart-title">Dados do Twish indisponíveis</div></div></div><div class="twish-smart-empty">Abra o Twish em uma aba para sincronizar inventário, loja e títulos. Você ainda pode digitar o comando manualmente.</div><button type="button" class="twish-smart-manual">DIGITAR MANUALMENTE</button>`;
+      wrap.refreshSmart = () => { if (smartConfig(command)) openSmartPicker(panel,command); };
+      wrap.innerHTML=`<div class="twish-smart-head"><button class="twish-smart-back" type="button">← Voltar</button><div class="twish-smart-heading"><div class="twish-smart-title">Aguardando sincronização com o Twish</div></div></div><div class="twish-smart-empty">Abra o Twish do CasalSkills e confira se está conectado. A extensão aguarda dados recentes. Você ainda pode digitar o comando manualmente.</div><button type="button" class="twish-smart-manual">DIGITAR MANUALMENTE</button>`;
       wrap.querySelector(".twish-smart-back").onclick=()=>renderGroup(panel,panel.dataset.activeGroup||"pesca"); wrap.querySelector(".twish-smart-manual").onclick=()=>{insertCommand(command);togglePanel(false)}; list.appendChild(wrap); return;
     }
     const actionLabel=cfg.kind==="bait"?"USAR":cfg.kind==="sell"?"VENDER":cfg.kind==="buy"?"COMPRAR":"EQUIPAR";
     wrap.innerHTML=`<div class="twish-smart-head"><button class="twish-smart-back" type="button">← Voltar</button><div class="twish-smart-heading"><div class="twish-smart-title">${cfg.title}</div></div></div><input class="twish-smart-input" type="search" placeholder="Buscar..." aria-label="Buscar opção"><div class="twish-smart-results"></div><button type="button" class="twish-smart-manual">DIGITAR MANUALMENTE</button>`;
     const input=wrap.querySelector(".twish-smart-input"), results=wrap.querySelector(".twish-smart-results");
-    const render=()=>{const q=input.value.trim().toLocaleLowerCase();const opts=cfg.options.filter(o=>`${o.name||o.id} ${o.id} ${o.description||""}`.toLocaleLowerCase().includes(q));results.replaceChildren();
+    let displayedSignature = JSON.stringify(cfg.options);
+    const render=()=>{cfg=smartConfig(command);if(!cfg){openSmartPicker(panel,command);return;}const q=input.value.trim().toLocaleLowerCase();const opts=cfg.options.filter(o=>`${o.name||o.id} ${o.id} ${o.description||""}`.toLocaleLowerCase().includes(q));results.replaceChildren();
       if(!opts.length){const e=document.createElement("div");e.className="twish-smart-empty";e.textContent="Nenhuma opção encontrada.";results.appendChild(e);return;}
       opts.forEach(o=>{const card=document.createElement("div");card.className="twish-smart-item";const qtyMax=cfg.kind==="bait"?o.owned:cfg.kind==="sell"?o.count:null;let meta="";
         if(cfg.kind==="bait")meta=`${o.owned} disponíveis${o.description?` • ${o.description}`:""}`;
@@ -669,9 +698,10 @@
         if(cfg.kind==="buy")meta=`${o.description||o.category||"Item da loja"} • ${o.discounted_cost??o.cost} twishcoins`;
         if(cfg.kind==="title")meta=Number(o.xp_bonus_percent||0)>0?`Bônus de XP: +${o.xp_bonus_percent}%`:"Título desbloqueado";
         card.innerHTML=`<div class="twish-smart-item-main"><span class="twish-smart-name">${o.emoji||""} ${o.name||o.id}</span></div><span class="twish-smart-badge">${o.equipped?"EQUIPADO":""}</span><span class="twish-smart-meta">${meta}</span>`;
-        if(cfg.kind==="title"){if(!o.equipped){const b=document.createElement("button");b.type="button";b.className="twish-smart-go twish-smart-title-action";b.textContent=actionLabel;b.onclick=()=>{insertCommand(PescaSkillsSmartCore.buildCommand("title",o.id));togglePanel(false)};card.appendChild(b);}}
-        else {const row=document.createElement("div");row.className="twish-smart-actions";row.innerHTML=`<span class="twish-smart-qty-label">Quantidade</span><button type="button" class="twish-smart-step" data-delta="-1">−</button><input class="twish-smart-qty-input" type="number" min="1" ${qtyMax?`max="${qtyMax}"`:""} value="1"><button type="button" class="twish-smart-step" data-delta="1">+</button><button type="button" class="twish-smart-go">${actionLabel}</button>`;const n=row.querySelector("input");const clamp=()=>{let v=Math.max(1,Math.floor(Number(n.value)||1));if(qtyMax)v=Math.min(v,qtyMax);n.value=String(v);return v;};row.querySelectorAll(".twish-smart-step").forEach(b=>b.onclick=()=>{n.value=String(clamp()+Number(b.dataset.delta));clamp()});n.addEventListener("change",clamp);row.querySelector(".twish-smart-go").onclick=()=>{insertCommand(PescaSkillsSmartCore.buildCommand(cfg.kind,o.id,clamp()));togglePanel(false)};card.appendChild(row);}results.appendChild(card);});};
-    input.addEventListener("input",render);wrap.querySelector(".twish-smart-back").onclick=()=>renderGroup(panel,panel.dataset.activeGroup||"pesca");wrap.querySelector(".twish-smart-manual").onclick=()=>{insertCommand(cfg.manual);togglePanel(false)};list.appendChild(wrap);render();input.focus();
+        if(cfg.kind==="title"){if(!o.equipped){const b=document.createElement("button");b.type="button";b.className="twish-smart-go twish-smart-title-action";b.textContent=actionLabel;b.onclick=()=>{if(!smartConfig(command)){openSmartPicker(panel,command);return;}insertCommand(PescaSkillsSmartCore.buildCommand("title",o.id));togglePanel(false)};card.appendChild(b);}}
+        else {const row=document.createElement("div");row.className="twish-smart-actions";row.innerHTML=`<span class="twish-smart-qty-label">Quantidade</span><button type="button" class="twish-smart-step" data-delta="-1">−</button><input class="twish-smart-qty-input" type="number" min="1" ${qtyMax?`max="${qtyMax}"`:""} value="1"><button type="button" class="twish-smart-step" data-delta="1">+</button><button type="button" class="twish-smart-go">${actionLabel}</button>`;const n=row.querySelector("input");const clamp=()=>{let v=Math.max(1,Math.floor(Number(n.value)||1));if(qtyMax)v=Math.min(v,qtyMax);n.value=String(v);return v;};row.querySelectorAll(".twish-smart-step").forEach(b=>b.onclick=()=>{n.value=String(clamp()+Number(b.dataset.delta));clamp()});n.addEventListener("change",clamp);row.querySelector(".twish-smart-go").onclick=()=>{const latest=smartConfig(command);const item=latest?.options.find(item=>item.id===o.id);if(!item){openSmartPicker(panel,command);return;}const available=latest.kind==="bait"?item.owned:latest.kind==="sell"?item.count:null;const qty=available==null?clamp():Math.min(clamp(),available);if(qty<1){openSmartPicker(panel,command);return;}insertCommand(PescaSkillsSmartCore.buildCommand(latest.kind,o.id,qty));togglePanel(false)};card.appendChild(row);}results.appendChild(card);});};
+    wrap.refreshSmart=()=>{const latest=smartConfig(command);if(!latest){openSmartPicker(panel,command);return;}const signature=JSON.stringify(latest.options);if(signature!==displayedSignature){displayedSignature=signature;render();}};
+    input.addEventListener("input",render);wrap.querySelector(".twish-smart-back").onclick=()=>renderGroup(panel,panel.dataset.activeGroup||"pesca");wrap.querySelector(".twish-smart-manual").onclick=()=>{insertCommand(command);togglePanel(false)};list.appendChild(wrap);render();input.focus();
   }
 
   function renderSettings(panel) {
@@ -744,6 +774,35 @@
     if (panel?.dataset.activeGroup === "ajustes") renderSettings(panel);
   });
 
+  function renderEventHistory() {
+    const host = document.querySelector(`#${PANEL_ID} .pescaskills-history`);
+    const core = globalThis.PescaSkillsEventHistory;
+    if (!host || !core) return;
+    const view = core.view(eventHistoryState);
+    const signature = JSON.stringify(view);
+    if (host.dataset.signature === signature) return;
+    host.dataset.signature = signature;
+    host.replaceChildren();
+    const title = document.createElement("h3"); title.textContent = "Histórico de hoje";
+    const note = document.createElement("p"); note.className = "pescaskills-history-note";
+    note.textContent = "Eventos detectados enquanto o PescaSkills acompanhava o Twish. Horários de detecção em Brasília; períodos sem acompanhamento não são recuperados.";
+    host.append(title,note);
+    if (!view.entries.length) {
+      const empty = document.createElement("p"); empty.className = "pescaskills-history-empty"; empty.textContent = "Nenhum evento registrado hoje."; host.appendChild(empty); return;
+    }
+    const list = document.createElement("ul"); list.className = "pescaskills-history-list";
+    const clock = new Intl.DateTimeFormat("pt-BR", {timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+    const labels = {active:"Em andamento",ended:"Encerrado",unconfirmed:"Sem confirmação recente"};
+    for (const entry of view.entries) {
+      const row = document.createElement("li"); row.className = "pescaskills-history-row";
+      const name = document.createElement("strong"); name.textContent = entry.name;
+      const time = document.createElement("time"); time.dateTime = new Date(entry.detectedAt).toISOString(); time.textContent = clock.format(new Date(entry.detectedAt)); time.title = "Horário de detecção (Brasília)";
+      const status = document.createElement("span"); status.className = "pescaskills-history-status"; status.textContent = labels[entry.status] || labels.unconfirmed;
+      row.append(name,time,status); list.appendChild(row);
+    }
+    host.appendChild(list);
+  }
+
   function renderGroup(panel, groupId) {
     const group = COMMAND_GROUPS.find(g => g.id === groupId) || COMMAND_GROUPS[0];
     panel.dataset.activeGroup = group.id;
@@ -793,6 +852,10 @@
       });
       list.appendChild(card);
     });
+    if (group.id === "eventos") {
+      const history = document.createElement("section"); history.className = "pescaskills-history"; history.setAttribute("aria-label","Histórico de eventos de hoje");
+      list.appendChild(history); renderEventHistory();
+    }
   }
 
   function togglePanel(force) {
