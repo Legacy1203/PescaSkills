@@ -1,3 +1,15 @@
+# 🎣 PescaSkills v1.0.14
+
+- Cooldown da pesca no texto do atalho: `$pescar - 0:33`.
+- Botão Pescar bloqueado durante o cooldown.
+- Melhoria na sincronização da pesca.
+- Botão 💰 para Vender Todos durante a Venda Turbinada.
+- Histórico de Eventos com cabeçalho simplificado.
+
+Para sincronizar, mantenha o Twish aberto no mesmo navegador.
+
+---
+
 # PescaSkills v1.0.3 — 22 de outubro de 2026
 
 - Consultas ao Twish no processo de segundo plano, agendadas aproximadamente a cada 30 segundos enquanto houver uma aba do CasalSkills no Twish aberta.

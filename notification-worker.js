@@ -1,5 +1,5 @@
 "use strict";
-importScripts("twish-status-core.js", "event-history.js", "sync-worker.js", "background-sync.js");
+
 
 // One background worker handles all Twish tabs and remembers transitions
 // across worker suspension without replaying the same notification.

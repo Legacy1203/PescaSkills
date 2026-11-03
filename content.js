@@ -133,15 +133,21 @@
   }
 
   function getFishingUiState() {
-    return globalThis.PescaSkillsStatusCore?.getFishingUiState?.(fishingStatusState) || { mode: "unknown", tooltip: "$pescar" };
+    const state=fishingStatusState;
+    const age=state ? Date.now()-state.updatedAt : Infinity;
+    const match=state?.cooldown?.match(/^(\d{1,2}):(\d{2})$/);
+    const hasTime=match && Number(match[2])<60 && Number(match[1])*60+Number(match[2])>0;
+    const cooldown=state && Number.isFinite(state.updatedAt) && age>=0 && age<=30000 && state.status === "cooldown" && hasTime ? state.cooldown : null;
+    return {mode:cooldown ? "cooldown" : "available",cooldown,tooltip:cooldown ? "Pescar • "+cooldown : "Pescar"};
   }
 
   function applyFishingStatusToButton(button) {
     if (!button?.dataset?.fishingButton) return;
     const ui = getFishingUiState();
     button.dataset.fishingStatus = ui.mode;
+    button.querySelector(".twish-fishing-countdown")?.remove();
     const tip = button.querySelector(".twish-tip");
-    if (tip) tip.textContent = ui.tooltip;
+    if (tip) tip.textContent = ui.cooldown ? `$pescar - ${ui.cooldown}` : "$pescar";
   }
 
   function refreshFishingButtons() {
@@ -200,6 +206,22 @@
     time.className = "twish-event-time";
     time.textContent = `⏱ ${eventUi.remaining}`;
     active.append(name, time);
+    if (eventUi.name === "Venda Turbinada") {
+      active.dataset.hasSale = "true";
+      const sell = document.createElement("button");
+      sell.type = "button";
+      sell.className = "twish-event-sell";
+      sell.textContent = "💰";
+      sell.title = "Vender Todos — preencher $vender todos no chat";
+      sell.setAttribute("aria-label", "Vender Todos");
+      sell.onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const latest = getEventUiState();
+        if (latest.active && latest.name === "Venda Turbinada") insertCommand("$vender todos");
+      };
+      active.appendChild(sell);
+    }
     if (eventUi.name === "Barco Misterioso" && Number.isFinite(eventUi.progressCount) && Number.isFinite(eventUi.progressTarget) && eventUi.progressTarget > 0) {
       active.dataset.hasProgress = "true";
       const progress = document.createElement("span");
@@ -218,53 +240,34 @@
   }
 
   function startFishingStatusSync() {
-    if (!chrome?.storage?.local || !chrome?.runtime?.sendMessage) return;
-    let sessionId = null, reading = false;
-    const buffered = [];
-    function accept(key, state, removed = false) {
-      if (key !== EVENT_HISTORY_STORAGE_KEY && state && state.sessionId !== sessionId) return;
-      const previous = key === EVENT_HISTORY_STORAGE_KEY ? eventHistoryState : key === FISHING_STATUS_STORAGE_KEY ? fishingStatusState : key === EVENT_STATUS_STORAGE_KEY ? eventStatusState : smartDataState;
-      if (!removed && previous && (!state || state.updatedAt < previous.updatedAt)) return;
-      if (key === FISHING_STATUS_STORAGE_KEY) fishingStatusState = state || null;
-      if (key === EVENT_STATUS_STORAGE_KEY) eventStatusState = state || null;
-      if (key === SMART_DATA_STORAGE_KEY) smartDataState = state || null;
-      if (key === EVENT_HISTORY_STORAGE_KEY) eventHistoryState = state || null;
-    }
-    function refresh() {
-      refreshFishingButtons(); refreshFishingCards(); refreshEventUi();
+    if (!chrome?.storage?.local) return;
+    chrome.storage.local.get([FISHING_STATUS_STORAGE_KEY, EVENT_STATUS_STORAGE_KEY, SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY], result => {
+      eventHistoryState = result?.[EVENT_HISTORY_STORAGE_KEY] || null;
+      fishingStatusState = result?.[FISHING_STATUS_STORAGE_KEY] || null;
+      eventStatusState = result?.[EVENT_STATUS_STORAGE_KEY] || null;
+      smartDataState = result?.[SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY] || null;
       renderEventHistory();
-      document.querySelectorAll(".twish-smart").forEach(wrap => wrap.refreshSmart?.());
       window.PescaSkillsAlerts?.observe(fishingStatusState, eventStatusState);
-    }
-    async function read() {
-      if (reading) return;
-      reading = true;
-      try {
-        const result = await chrome.runtime.sendMessage({ type: "pescaskills.sync.read" });
-        if (!result?.ok) return;
-        if (sessionId !== result.sessionId) fishingStatusState = eventStatusState = smartDataState = null;
-        sessionId = result.sessionId;
-        for (const key of [FISHING_STATUS_STORAGE_KEY, EVENT_STATUS_STORAGE_KEY, SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY]) accept(key, result.states?.[key]);
-        buffered.splice(0).forEach(([key,state,removed]) => accept(key,state,removed));
-        refresh();
-      } catch (_) {} finally { reading = false; }
-    }
+      refreshFishingButtons();
+      refreshFishingCards();
+      refreshEventUi();
+    });
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;
-      for (const key of [FISHING_STATUS_STORAGE_KEY, EVENT_STATUS_STORAGE_KEY, SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY]) {
-        if (!changes[key]) continue;
-        const value = changes[key].newValue;
-        if (!sessionId) buffered.push([key,value,!value]);
-        else accept(key,value,!value);
+      if(changes[EVENT_HISTORY_STORAGE_KEY])eventHistoryState=changes[EVENT_HISTORY_STORAGE_KEY].newValue||null;
+      if (changes[FISHING_STATUS_STORAGE_KEY]) {
+        fishingStatusState = changes[FISHING_STATUS_STORAGE_KEY].newValue || null;
+        refreshFishingButtons();
+        refreshFishingCards();
       }
-      refresh();
+      if (changes[SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY]) smartDataState = changes[SMART_DATA_STORAGE_KEY, EVENT_HISTORY_STORAGE_KEY].newValue || null;
+      if (changes[EVENT_STATUS_STORAGE_KEY]) {
+        eventStatusState = changes[EVENT_STATUS_STORAGE_KEY].newValue || null;
+        refreshEventUi();
+      }
+      window.PescaSkillsAlerts?.observe(fishingStatusState, eventStatusState);
     });
-    read();
-    setInterval(() => { refresh(); if (!sessionId) read(); }, 1000);
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") read(); });
-    window.addEventListener("pageshow", event => { if (event.persisted) read(); });
-    window.addEventListener("focus", read);
-    window.addEventListener("online", read);
+    setInterval(() => { refreshFishingButtons(); refreshFishingCards(); refreshEventUi(); renderEventHistory(); }, 1000);
   }
 
   let draggedQuickId = null;
@@ -514,6 +517,7 @@
   function css() {
     return `
       .pescaskills-history{grid-column:1/-1;min-width:0;border:1px solid #6c3c22;padding:12px;background:rgba(244,223,173,.95);color:#3b2114}.pescaskills-history h3{margin:0 0 6px;font:700 14px/1.3 "Courier New",monospace}.pescaskills-history-note,.pescaskills-history-empty{font-size:11px;line-height:1.5;margin:0 0 10px}.pescaskills-history-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}.pescaskills-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;padding:9px;border:1px solid rgba(108,60,34,.35);background:rgba(255,243,209,.65);font-size:11px}.pescaskills-history-row strong{min-width:0;overflow-wrap:anywhere}.pescaskills-history-status{grid-column:1/-1;font-size:10px;opacity:.85}.pescaskills-history-row time{font-variant-numeric:tabular-nums;white-space:nowrap}html[data-pescaskills-theme="skills"] .pescaskills-history{background:rgba(18,20,33,.96);border-color:#4d2a8f;color:#f5f0ff}html[data-pescaskills-theme="skills"] .pescaskills-history-row{background:#151329;border-color:#353450}html[data-pescaskills-theme="skills"] .pescaskills-history-note{color:#bfb6d3}
+      .twish-fishing-countdown{position:absolute;bottom:0;left:0;right:0;text-align:center;font:700 9px/12px monospace;background:#171522;color:#fff;border-radius:2px;pointer-events:none}
       #${ROOT_ID}{position:relative;width:100%;box-sizing:border-box;margin:0 0 7px;font-family:"Courier New",monospace;z-index:50}
       #${ROOT_ID} *{box-sizing:border-box}
       .twish-quick{display:grid;grid-template-columns:repeat(7,34px);justify-content:space-between;gap:4px;align-items:center;width:100%;padding:0 2px}
@@ -525,6 +529,7 @@
       .twish-px-btn[data-fishing-status="available"]{box-shadow:inset 0 0 0 2px #ffe59a,0 0 10px rgba(255,213,90,.72),3px 3px 0 #1c100a}
       .twish-px-btn[data-event-active="true"]{background:#c87a38;box-shadow:inset 0 0 0 2px #ffe59a,0 0 12px rgba(255,213,90,.8),3px 3px 0 #1c100a}
       .twish-event-host{display:none;width:100%;box-sizing:border-box;margin:0 0 6px}.twish-event-host[data-active="true"]{display:block}
+      .twish-event-active[data-has-sale="true"]{grid-template-columns:minmax(0,1fr) auto auto}.twish-event-sell{justify-self:end;border:1px solid currentColor;background:transparent;color:inherit;padding:5px 7px;font:700 10px/1.2 "Courier New",monospace;white-space:nowrap;cursor:pointer}.twish-event-sell:hover{background:rgba(128,128,128,.2)}.twish-event-sell:focus-visible{outline:2px solid currentColor;outline-offset:2px}
       .twish-event-active{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;height:40px;gap:8px;padding:6px 10px;border:2px solid #8b5528;background:#f3d89d;box-shadow:inset 0 0 0 2px #fff0c9,3px 3px 0 #72553b;color:#3b2114}.twish-event-active strong{min-width:0;font-size:12px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.twish-event-time{font-size:12px;line-height:1.2;font-weight:900;justify-self:end;white-space:nowrap}.twish-event-active[data-has-progress="true"]{height:50px;row-gap:3px;grid-template-rows:auto auto}.twish-event-active[data-has-progress="true"] .twish-event-time{grid-column:2;grid-row:1/3;align-self:center}.twish-event-progress{grid-column:1;grid-row:2;font-size:10px;font-weight:700;line-height:1.1;opacity:.9}
       .twish-card[data-fishing-status="cooldown"]{opacity:.55;filter:saturate(.25);cursor:not-allowed}.twish-card[data-fishing-status="available"]{filter:none}.twish-card[data-event-active="true"]{filter:none;opacity:1;box-shadow:inset 0 0 0 2px #fff0c9,0 0 10px rgba(255,213,90,.72)}
       .twish-smart{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;min-width:0}.twish-smart-head{display:flex;align-items:center;gap:10px;padding-bottom:9px;border-bottom:1px solid rgba(108,60,34,.3)}.twish-smart-back{flex:0 0 auto;border:1px solid #6c3c22;background:#d2bd92;color:#3a210f;padding:7px 9px;font:800 10px "Courier New",monospace;cursor:pointer}.twish-smart-back:hover{background:#ffe9b6}.twish-smart-heading{min-width:0}.twish-smart-title{font-size:14px;font-weight:900;line-height:1.15}.twish-smart-input{width:100%;height:36px;padding:0 11px;border:1px solid #6c3c22;background:#fff3d1;color:#3a210f;font:700 11px "Courier New",monospace;outline:none}.twish-smart-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}.twish-smart-item{min-width:0;display:grid;grid-template-columns:1fr auto;gap:6px 8px;padding:10px;border:1px solid #6c3c22;background:#f4dfad;color:#3b2114;box-shadow:2px 2px 0 rgba(114,85,59,.55)}.twish-smart-item-main{min-width:0}.twish-smart-name{display:block;font-size:11px;font-weight:900;line-height:1.25}.twish-smart-meta{display:block;grid-column:1/-1;font-size:9px;line-height:1.35;color:#765038}.twish-smart-badge{align-self:start;min-height:17px;padding:3px 5px;border:1px solid #8b5528;background:#d69a43;color:#3b2114;font-size:8px;font-weight:900;white-space:nowrap}.twish-smart-badge:empty{display:none}.twish-smart-actions{grid-column:1/-1;display:flex;align-items:center;gap:6px;margin-top:3px;padding-top:8px;border-top:1px solid rgba(108,60,34,.24)}.twish-smart-qty-label{margin-right:auto;font-size:9px;font-weight:800;opacity:.72}.twish-smart-step{width:26px;height:26px;padding:0;border:1px solid #6c3c22;background:#d2bd92;color:#3a210f;font:900 14px/1 "Courier New",monospace;cursor:pointer}.twish-smart-qty-input{width:44px;height:26px;padding:0 4px;border:1px solid #6c3c22;background:#fff3d1;color:#3a210f;text-align:center;font:800 10px "Courier New",monospace}.twish-smart-go{height:27px;padding:0 9px;border:1px solid #542d19;background:#a95f2d;color:#fff0bd;font:900 9px "Courier New",monospace;cursor:pointer}.twish-smart-go:hover{background:#c87a38}.twish-smart-title-action{grid-column:1/-1;justify-self:end;margin-top:3px}.twish-smart-manual{align-self:center;margin-top:2px;padding:7px 12px;border:1px solid #8b6747;background:transparent;color:#594735;font:800 9px "Courier New",monospace;cursor:pointer}.twish-smart-empty{grid-column:1/-1;padding:18px;border:1px dashed rgba(108,60,34,.45);text-align:center;font-size:10px;opacity:.75}@media(max-width:700px){.twish-smart-results{grid-template-columns:1fr}}
@@ -783,10 +788,8 @@
     if (host.dataset.signature === signature) return;
     host.dataset.signature = signature;
     host.replaceChildren();
-    const title = document.createElement("h3"); title.textContent = "Histórico de hoje";
-    const note = document.createElement("p"); note.className = "pescaskills-history-note";
-    note.textContent = "Eventos detectados enquanto o PescaSkills acompanhava o Twish. Horários de detecção em Brasília; períodos sem acompanhamento não são recuperados.";
-    host.append(title,note);
+    const title = document.createElement("h3"); title.textContent = "Histórico de Eventos";
+    host.appendChild(title);
     if (!view.entries.length) {
       const empty = document.createElement("p"); empty.className = "pescaskills-history-empty"; empty.textContent = "Nenhum evento registrado hoje."; host.appendChild(empty); return;
     }
